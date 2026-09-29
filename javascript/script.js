@@ -885,10 +885,22 @@ async function submitMeters() {
         }
         if (!response.ok) throw new Error(await response.text() || 'Ошибка сервера 1С');
 
+        // ответ 1С: { ok, sum, debt_error }
+        let body = null;
+        try { body = await response.json(); } catch (e) {}
+
         lockPoint(pointId);
-        await applyDebtDelta(pointId, sessionTotal);
-        showSuccessAnimation();
-        showToast('Документ в 1С успешно создан!');
+
+        if (body && body.debt_error) {
+            // документ создан, но долг в регистре не записался
+            console.error('[1С] долг не начислен:', body.debt_error);
+            showToast('Документ создан, но ДОЛГ НЕ НАЧИСЛЕН: ' + String(body.debt_error).slice(0, 150), true);
+        } else {
+            await applyDebtDelta(pointId, sessionTotal);
+            showSuccessAnimation();
+            showToast('Документ в 1С успешно создан!');
+        }
+
         finishSubmission();
         loadData({ silent: true });
 
