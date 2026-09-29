@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#2563eb">
+    <title>1с база</title>
+    <script>
+    (function () {
+        try {
+            var cores = navigator.hardwareConcurrency || 4;
+            var mem = navigator.deviceMemory || 4;
+            var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            if (reduce || cores <= 4 || mem <= 2) document.documentElement.classList.add('low-end');
+        } catch (e) {}
+    })();
+    </script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+</head>
+<body>
+    <div id="topProgress" class="top-progress"></div>
+
+    <div id="userBadge" class="user-badge"></div>
+
+    <div id="authOverlay" class="auth-overlay">
+        <div class="auth-box">
+            <h2>Вход в систему</h2>
+            <p>Введите ваш ПИН-код для начала работы</p>
+            <input type="password" id="pinInput" class="pin-input" inputmode="numeric" pattern="[0-9]*" placeholder="••••">
+            <div id="authError" class="auth-error" style="display: none;">Неверный ПИН-код</div>
+            <button class="action-btn" onclick="login()" style="width: 100%; padding: 12px; font-size: 1.1rem;">Войти</button>
+        </div>
+    </div>
+
+    <button id="themeToggle" class="theme-toggle">🌙</button>
+
+    <div class="app-wrapper" id="appWrapper">
+        <div class="search-container center" id="searchContainer">
+            <div class="search-box">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="searchInput" placeholder="Введите код точки..." autocomplete="off" autofocus>
+            </div>
+            <div class="search-filters" id="searchFilters">
+                <button type="button" class="filter-chip active" data-mode="all">Все</button>
+                <button type="button" class="filter-chip" data-mode="point">Точка</button>
+                <button type="button" class="filter-chip" data-mode="machine">Машина</button>
+            </div>
+            <div class="search-hint" id="searchHint">Введите номер точки. 0 покажет все точки</div>
+        </div>
+
+        <div class="results-container" id="resultsContainer"></div>
+    </div>
+
+    <button id="backToTop" class="back-to-top" aria-label="наверх">↑</button>
+
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3 id="modalTitle">Снятие показателей</h3>
+                <button class="modal-close" onclick="closeModal()">✕</button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+            <div class="modal-footer">
+                <button class="action-btn" onclick="showConfirmModal()">Продолжить</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="confirmOverlay" style="z-index: 1010;">
+        <div class="modal-box confirm-box">
+            <div class="modal-header">
+                <h3>Проверка данных</h3>
+                <button class="modal-close" onclick="closeConfirmModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <p style="text-align: center; margin-bottom: 15px; color: #64748b; font-size: 0.95rem;">Проверьте итоговые цифры перед отправкой в 1С</p>
+                <div class="confirm-summary">
+                    <div class="confirm-item">
+                        <span>Всего продано:</span>
+                        <strong id="confirmTotalCups" style="color: #0f172a; font-size: 1.2rem;">0 шт</strong>
+                    </div>
+                    <div class="confirm-item">
+                        <span>На сумму:</span>
+                        <strong id="confirmTotalMoney" style="color: #10b981; font-size: 1.2rem;">0 ₴</strong>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="justify-content: space-between;">
+                <button class="action-btn btn-secondary" onclick="closeConfirmModal()">Назад</button>
+                <button class="action-btn btn-success" onclick="submitMeters()">Отправить в 1С</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="paymentOverlay" style="z-index: 1020;">
+        <div class="modal-box confirm-box">
+            <div class="modal-header">
+                <h3>Оплата долга</h3>
+                <button class="modal-close" onclick="closePaymentModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <p style="text-align:center; margin-bottom:6px; font-weight:600;" id="paymentPointName"></p>
+                <div class="confirm-summary">
+                    <div class="confirm-item">
+                        <span>Текущий долг:</span>
+                        <strong id="paymentCurrentDebt" class="debt-value red">0 ₴</strong>
+                    </div>
+                </div>
+                <div class="meter-input-group" style="margin-top:16px;">
+                    <label style="font-size:0.85rem; color:#64748b; display:block; margin-bottom:6px;">Сумма оплаты, ₴</label>
+                    <input type="number" inputmode="decimal" id="paymentAmount" min="0" step="0.01" placeholder="0">
+                </div>
+                <div id="paymentError" class="auth-error" style="display:none; margin-top:10px; margin-bottom:0;"></div>
+            </div>
+            <div class="modal-footer" style="justify-content: space-between;">
+                <button class="action-btn btn-secondary" onclick="closePaymentModal()">Отмена</button>
+                <button class="action-btn btn-success" onclick="submitPayment()">Провести оплату</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast">
+        <span id="toastMessage">Успешно!</span>
+    </div>
+
+    <div id="connectionStatus" class="connection-status" title="Нажмите для обновления">
+        <div class="status-dot"></div>
+        <div class="status-content">
+            <span class="status-text">Проверка связи...</span>
+            <span class="status-time" id="statusTime"></span>
+        </div>
+        <span class="refresh-icon">⟳</span>
+    </div>
+
+    <div id="appVersion" class="app-version"></div>
+
+    <script src="version.js"></script>
+    <script src="javascript/config.js"></script>
+    <script src="javascript/auth.js"></script>
+    <script src="javascript/script.js"></script>
+</body>
+</html>
