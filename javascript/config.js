@@ -21,7 +21,7 @@ const APP_CONFIG = {
   lockHours: 12,
 
   unlimitedUserIds: ['9'],
-  autoLogoutAfterSubmit: true,
+  autoLogoutAfterSubmit: false,
 
   pageSize: 30,
   refreshAfterMinutes: 5
