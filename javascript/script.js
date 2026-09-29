@@ -549,7 +549,7 @@ function cardHtml(item, idx) {
 
             ${lock ? `
             <div class="lock-note">
-                Показатели по этой точке уже внесены${lockTimeText(lock)}.${isUnlimitedUser() ? 'На вас лимит не распространяется.' : ' Для изменений позвоните в 1С.'}
+                Показатели по этой точке уже внесены${lockTimeText(lock)}.${isUnlimitedUser() ? ' На вас лимит не распространяется.' : ' Для изменений позвоните в 1С.'}
                 ${lock.pending ? '<br><b>Ожидает отправки в 1С (нет связи).</b>' : ''}
                 ${isUnlimitedUser() && !lock.server ? `<br><button class="action-btn btn-secondary" style="margin-top:8px" data-action="unlock" data-id="${id}">Снять блок</button>` : ''}
             </div>` : ''}
