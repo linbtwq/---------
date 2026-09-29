@@ -240,7 +240,7 @@ function initEventListeners() {
             else if (action === 'unlock') adminUnlock(id);
             else if (action === 'more') appendCards(results, false);
             else if (action === 'pay') openPaymentModal(id);
-            else if (action === 'btn2') alert('Нажата Кнопка 2 для точки: ' + id);
+            else if (action === 'assort') openAssortModal(id);
         });
         results.addEventListener('scroll', updateBackToTop, { passive: true });
     }
@@ -514,10 +514,10 @@ function cardHtml(item, idx) {
         ? `<div class="info-item"><span class="debt-label">Борг</span><span class="debt-value red">${fmt(debt)} ₴</span></div>` 
         : `<div class="info-item"><span class="debt-label">Борг</span><span class="debt-value green">0 ₴</span></div>`;
 
-    // ДОБАВЛЕНО: Формируем вывод оборудования ВМЕСТЕ С КОДОМ из 1С
     let machineDisplay = escapeHtml(item.coffee_machine) || '—';
-    if (item.coffee_machine && item.coffee_machine_code) {
-        machineDisplay += ` <span style="color:#94a3b8; font-size:0.85rem; white-space:nowrap;">[${escapeHtml(item.coffee_machine_code)}]</span>`;
+    if (item.coffee_machine_code) {
+        const machineCode = `<span class="machine-code">Код <code>${escapeHtml(item.coffee_machine_code)}</code></span>`;
+        machineDisplay = item.coffee_machine ? `${machineDisplay} ${machineCode}` : machineCode;
     }
 
     return `
@@ -533,9 +533,7 @@ function cardHtml(item, idx) {
             <div class="point-grid">
                 <div class="info-item"><label>Контрагент</label><span>${escapeHtml(item.counterparty) || '—'}</span></div>
                 <div class="info-item"><label>Адрес</label><span>${escapeHtml(item.address) || '—'}</span></div>
-                <div class="info-item"><label>Оборудование</label><span class="${item.coffee_machine ? 'machine-tag' : ''}">${escapeHtml(item.coffee_machine) || '—'}</span></div>
-                
-                <div class="info-item"><label>Код машины</label><span><code>${escapeHtml(item.coffee_machine_code) || '—'}</code></span></div>
+                <div class="info-item machine-info"><label>Оборудование</label><span class="${item.coffee_machine ? 'machine-tag' : ''}">${machineDisplay}</span></div>
                 
                 ${debtHtml}
             </div>
@@ -544,7 +542,7 @@ function cardHtml(item, idx) {
             <div class="card-actions">
                 <button class="action-btn" data-action="open" data-id="${id}" ${blocked ? 'disabled' : ''}>Показатели</button>
                 <button class="action-btn btn-success" data-action="pay" data-id="${id}" ${debt > 0 ? '' : 'disabled'}>Оплата боргу</button>
-                <button class="action-btn btn-secondary" data-action="btn2" data-id="${id}">Кнопка 2</button>
+                <button class="action-btn btn-secondary" data-action="assort" data-id="${id}">Ассортимент</button>
             </div>
 
             ${lock ? `
@@ -1281,6 +1279,7 @@ function closeTopModal() {
     if (m.id === 'modalOverlay') closeModal();
     else if (m.id === 'confirmOverlay') closeConfirmModal();
     else if (m.id === 'paymentOverlay') closePaymentModal();
+    else if (m.id === 'assortOverlay') closeAssortModal();
 }
 
 let _focusBeforeModal = null;
