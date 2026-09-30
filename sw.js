@@ -15,7 +15,8 @@ const ASSETS = [
     './version.js',
     './javascript/config.js',
     './javascript/auth.js',
-    './javascript/script.js'
+    './javascript/script.js',
+    './javascript/assortments.js'
 ];
 
 /*

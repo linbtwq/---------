@@ -104,6 +104,11 @@ async function login() {
 
 // логика выхода из системы
 function logout() {
+    // закрываем все активные модалки, чтобы следующий пользователь
+    // не увидел чужое состояние
+    document.querySelectorAll('.modal-overlay.active')
+        .forEach(m => m.classList.remove('active'));
+
     localStorage.removeItem('currentUser');
     currentUser = null;
 
@@ -124,8 +129,7 @@ function logout() {
 
     const searchInput = document.getElementById('searchInput');
     if (searchInput) searchInput.value = '';
-    
-    // вызываем функцию очистки глобального состояния, если она есть в script.js
+
     if (typeof resetAppState === 'function') resetAppState();
 }
 

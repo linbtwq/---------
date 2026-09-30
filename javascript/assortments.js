@@ -3,43 +3,26 @@
 //
 // подключается в index.html ПОСЛЕ script.js.
 //
-// использует глобальные из script.js:
-// apiBase, fetchWithTimeout, localDB, globalData,
-// escapeHtml, fmt, rememberFocus, restoreFocus, getTopModal, APP_CONFIG,
-// newRequestId, showToast, showSuccessAnimation, setBtnLoading, resetBtn,
-// currentUser, closeAssortModal (заглушка в script.js).
-//
 // данные:
 // GET {apiBase}/assortments?point=<код точки>
 //
-// ответ 1С:
-// [{ Code, Name, price, minStock }, ...]
-//
-// служебные ответы приходят как один элемент с Code "0"
-// и текстом в Name.
-//
 // заказ:
 // POST {apiBase}/orders
-//
 // тело:
 // {
-//     point_id,
-//     technician_id,
-//     request_id,
-//     total,
+//     point_id, technician_id, request_id, total,
 //     items: [{ code, name, qty, price }]
 // }
 
 let assortLoading = false;
 let orderSending = false;
 
-// состояние текущего заказа
 const order = {
     pointId: null,
-    qty: {},          // { код позиции: количество }
-    items: {},        // { код позиции: { name, price } }
-    requestId: null,  // сбрасывается при любом изменении количества
-    canOrder: false   // заказ только онлайн и только по реальным позициям
+    qty: {},
+    items: {},
+    requestId: null,
+    canOrder: false
 };
 
 function resetOrder() {
@@ -62,7 +45,7 @@ function ensureAssortModal() {
 
     el.innerHTML = `
         <div class="modal-box assort-box">
-                        <div class="modal-header">
+            <div class="modal-header">
                 <div class="assort-head">
                     <h3>Ассортимент</h3>
                     <div class="assort-sub" id="assortSub"></div>
@@ -101,7 +84,7 @@ function ensureAssortModal() {
         .addEventListener('click', closeAssortModal);
 
     el.querySelector('#orderSendBtn')
-        .addEventListener('click', submitOrder);
+        .addEventListener('click', showOrderConfirm);
 
     return el;
 }
@@ -131,35 +114,25 @@ async function loadPointAssortment(pointId) {
 
         try {
             await localDB.save(key, data);
-        } catch (e) {
-            //кэш не критичен
-        }
+        } catch (e) {}
 
-        return {
-            data,
-            offline: false
-        };
+        return { data, offline: false };
 
     } catch (err) {
         try {
             const cached = await localDB.load(key);
 
             if (Array.isArray(cached)) {
-                return {
-                    data: cached,
-                    offline: true
-                };
+                return { data: cached, offline: true };
             }
-        } catch (e) {
-            // ошибка чтения кэша
-        }
+        } catch (e) {}
 
         throw err;
     }
 }
 
 
-// заказ 
+// заказ
 
 function orderTotals() {
     let count = 0;
@@ -167,16 +140,10 @@ function orderTotals() {
 
     for (const code in order.qty) {
         count++;
-
-        sum +=
-            order.qty[code] *
-            (order.items[code]?.price || 0);
+        sum += order.qty[code] * (order.items[code]?.price || 0);
     }
 
-    return {
-        count,
-        sum
-    };
+    return { count, sum };
 }
 
 function updateOrderBar() {
@@ -204,13 +171,7 @@ function updateOrderBar() {
 }
 
 function setQty(code, value, tile, syncInput) {
-    const q = Math.max(
-        0,
-        Math.min(
-            9999,
-            Math.floor(Number(value) || 0)
-        )
-    );
+    const q = Math.max(0, Math.min(9999, Math.floor(Number(value) || 0)));
 
     if (q) {
         order.qty[code] = q;
@@ -218,20 +179,15 @@ function setQty(code, value, tile, syncInput) {
         delete order.qty[code];
     }
 
-    // состав заказа изменился это уже другой заказ
     order.requestId = null;
 
     tile.classList.toggle('picked', q > 0);
 
     if (syncInput) {
         const inp = tile.querySelector('.qty-input');
-
-        if (inp) {
-            inp.value = q;
-        }
+        if (inp) inp.value = q;
     }
 
-    // Колонка "Сумма" = количество × цена
     const totalEl = tile.querySelector('.assort-row-total');
     if (totalEl) {
         const price = Number(tile.dataset.price) || 0;
@@ -241,24 +197,35 @@ function setQty(code, value, tile, syncInput) {
     updateOrderBar();
 }
 
+// локально помечаем точку "заказ сделан" + обновляем долг,
+// чтобы карточка сразу перерисовалась без ожидания loadData
+function point_orders_locked(pointId, orderSum) {
+    const item = globalData.find(i => String(i.id) === String(pointId));
+    if (!item) return;
+
+    item.order_locked = true;
+    item.order_locked_at = new Date().toLocaleString('ru-RU');
+
+    if (orderSum) {
+        item.debt = (Number(item.debt) || 0) + Number(orderSum);
+        try {
+            localDB.save('cachedNomenclature', globalData);
+        } catch (e) {}
+    }
+
+    if (typeof loadData === 'function') {
+        loadData({ silent: true });
+    }
+}
+
 async function submitOrder() {
     if (orderSending || !order.canOrder) return;
 
     const { count, sum } = orderTotals();
-
     if (!count) return;
 
     if (!navigator.onLine) {
-        showToast(
-            'Нет сети! Заказ можно отправить только онлайн.',
-            true
-        );
-        return;
-    }
-
-    if (!confirm(
-        `Отправить заказ: ${count} поз. на ${fmt(sum)} ₴?`
-    )) {
+        showToast('Нет сети! Заказ можно отправить только онлайн.', true);
         return;
     }
 
@@ -269,8 +236,7 @@ async function submitOrder() {
         price: order.items[code].price
     }));
 
-    order.requestId =
-        order.requestId || newRequestId();
+    order.requestId = order.requestId || newRequestId();
 
     const payload = {
         point_id: order.pointId,
@@ -280,33 +246,29 @@ async function submitOrder() {
         items
     };
 
-    const btn =
-        document.getElementById('orderSendBtn');
+    // запоминаем, куда возвращать, до resetOrder()
+    const pointId = order.pointId;
 
-    // кнопки "Закрыть" в футере больше нет — блокируем крестик в шапке,
-    // чтобы во время отправки заказ нельзя было прервать закрытием окна
-    const closeBtn =
-        document.querySelector('#assortOverlay .modal-close');
+    const btn = document.getElementById('orderSendBtn');
+    const closeBtn = document.querySelector('#assortOverlay .modal-close');
 
     orderSending = true;
-
     if (closeBtn) closeBtn.disabled = true;
-
     setBtnLoading(btn, 'Отправка...');
+
+    let success = false;
+    let finalSum = sum;
+    let debtError = '';
 
     try {
         const res = await fetchWithTimeout(
             `${apiBase}/orders?v=${APP_CONFIG.apiVersion}`,
             {
                 method: 'POST',
-
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-User-Code': currentUser
-                        ? currentUser.id
-                        : ''
+                    'X-User-Code': currentUser ? currentUser.id : ''
                 },
-
                 body: JSON.stringify(payload)
             },
             APP_CONFIG.sendTimeoutMs
@@ -314,95 +276,84 @@ async function submitOrder() {
 
         if (!res.ok) {
             const errText = await res.text();
-
-            throw new Error(
-                errText.slice(0, 150) ||
-                'Ошибка сервера 1С'
-            );
+            throw new Error(errText.slice(0, 150) || 'Ошибка сервера 1С');
         }
 
-        showSuccessAnimation();
+        let body = null;
+        try { body = await res.json(); } catch (e) {}
 
-        showToast(
-            `Заказ отправлен: ${count} поз. на ${fmt(sum)} ₴`
-        );
+        if (body && Number(body.sum)) finalSum = Number(body.sum);
+        if (body && body.debt_error) debtError = String(body.debt_error);
 
-        resetOrder();
-
-        closeAssortModal();
+        success = true;
 
     } catch (err) {
-        const message =
-            err && err.message
-                ? err.message
-                : String(err);
-
-        const msg =
-            message.includes('Failed to fetch') ||
-            message.toLowerCase().includes('timeout')
-                ? '1С не отвечает. Заказ не отправлен, попробуйте ещё раз.'
-                : `Не удалось отправить заказ: ${message}`;
-
+        const message = err && err.message ? err.message : String(err);
+        const msg = (message.includes('Failed to fetch') || message.toLowerCase().includes('timeout'))
+            ? '1С не отвечает. Заказ не отправлен, попробуйте ещё раз.'
+            : `Не удалось отправить заказ: ${message}`;
         showToast(msg, true);
 
     } finally {
         orderSending = false;
-
         if (closeBtn) closeBtn.disabled = false;
-
         resetBtn(btn, 'Заказать');
 
-        updateOrderBar();
+        if (success) {
+            showSuccessAnimation();
+
+            if (debtError) {
+                console.error('[1С] долг по заказу не начислен:', debtError);
+                showToast('Заказ создан, но ДОЛГ НЕ НАЧИСЛЕН: ' + debtError.slice(0, 150), true);
+            } else {
+                showToast(`Заказ отправлен: ${count} поз. на ${fmt(finalSum)} ₴`);
+            }
+
+            point_orders_locked(pointId, finalSum);
+
+            resetOrder();
+
+            document.getElementById('orderConfirmOverlay')?.classList.remove('active');
+            closeAssortModal();
+
+            if (typeof resetToSearchScreen === 'function') {
+                resetToSearchScreen();
+            }
+        } else {
+            updateOrderBar();
+        }
     }
 }
 
 
-// отрисовка тела модалки с ассортиментом
+// отрисовка тела модалки
 
 function renderAssortBody(data, offline) {
     const body = document.getElementById('assortBody');
 
     order.canOrder = false;
 
-    // служебное сообщение от 1С
-    // один элемент с Code "0"
-    if (
-        data.length === 1 &&
-        String(data[0].Code) === '0'
-    ) {
+    if (data.length === 1 && String(data[0].Code) === '0') {
         body.innerHTML = `
-            <div
-                class="empty-state"
-                style="padding:28px 20px;"
-            >
+            <div class="empty-state" style="padding:28px 20px;">
                 ${escapeHtml(data[0].Name)}
             </div>
         `;
-
         updateOrderBar();
-
         return;
     }
 
-    // пустой ассортимент
     if (!data.length) {
         body.innerHTML = `
-            <div
-                class="empty-state"
-                style="padding:28px 20px;"
-            >
+            <div class="empty-state" style="padding:28px 20px;">
                 Ассортимент пустой
             </div>
         `;
-
         updateOrderBar();
-
         return;
     }
 
-    // заказывать можно только при онлайн-загрузке
     order.canOrder = !offline;
-
     order.items = {};
 
     data.forEach(it => {
@@ -412,17 +363,13 @@ function renderAssortBody(data, offline) {
         };
     });
 
-    const prices = data.map(
-        i => Number(i.price) || 0
-    );
-
+    const prices = data.map(i => Number(i.price) || 0);
     const min = Math.min(...prices);
     const max = Math.max(...prices);
 
-    const priceText =
-        min === max
-            ? `${fmt(min)} ₴`
-            : `${fmt(min)}–${fmt(max)} ₴`;
+    const priceText = min === max
+        ? `${fmt(min)} ₴`
+        : `${fmt(min)}–${fmt(max)} ₴`;
 
     const showSearch = data.length > 8;
 
@@ -431,10 +378,7 @@ function renderAssortBody(data, offline) {
             showSearch
                 ? `
                     <div class="assort-top">
-                        <div
-                            class="assort-search-wrap"
-                            style="padding-bottom:0;"
-                        >
+                        <div class="assort-search-wrap">
                             <input
                                 type="search"
                                 class="assort-search"
@@ -460,42 +404,21 @@ function renderAssortBody(data, offline) {
         }
 
         <div class="assort-panel">
-
-            <div
-                class="assort-pills"
-                style="margin-top:0;"
-            >
-                <span class="assort-pill">
-                    ${data.length} поз.
-                </span>
-
-                <span class="assort-pill price">
-                    ${priceText}
-                </span>
+            <div class="assort-pills" style="margin-top:0;">
+                <span class="assort-pill">${data.length} поз.</span>
+                <span class="assort-pill price">${priceText}</span>
             </div>
 
-            <div
-                id="assortGrid"
-                class="assort-grid"
-                style="margin-top:14px;"
-            >
+            <div id="assortGrid" class="assort-grid" style="margin-top:14px;">
                 ${data.map((it) => {
-                    const minStock =
-                        Number(it.minStock) || 0;
-
-                    const price =
-                        Number(it.price) || 0;
-
-                    const code =
-                        escapeHtml(String(it.Code));
-
-                    const name =
-                        String(it.Name || '');
+                    const minStock = Number(it.minStock) || 0;
+                    const price = Number(it.price) || 0;
+                    const code = escapeHtml(String(it.Code));
+                    const name = String(it.Name || '');
 
                     return `
                         <div
                             class="meter-input-group assort-row"
-                            data-name="${escapeHtml(name.toLowerCase())}"
                             data-code="${code}"
                             data-price="${price}"
                         >
@@ -522,27 +445,9 @@ function renderAssortBody(data, offline) {
                                         order.canOrder
                                             ? `
                                                 <div class="qty">
-                                                    <button
-                                                        type="button"
-                                                        class="qty-btn"
-                                                        data-step="-1"
-                                                        aria-label="Меньше"
-                                                    >−</button>
-
-                                                    <input
-                                                        type="text"
-                                                        class="qty-input"
-                                                        inputmode="numeric"
-                                                        value="0"
-                                                        aria-label="Количество"
-                                                    >
-
-                                                    <button
-                                                        type="button"
-                                                        class="qty-btn"
-                                                        data-step="1"
-                                                        aria-label="Больше"
-                                                    >+</button>
+                                                    <button type="button" class="qty-btn" data-step="-1" aria-label="Меньше">−</button>
+                                                    <input type="text" class="qty-input" inputmode="numeric" value="0" aria-label="Количество">
+                                                    <button type="button" class="qty-btn" data-step="1" aria-label="Больше">+</button>
                                                 </div>
                                               `
                                             : `<div class="assort-field-static">—</div>`
@@ -559,150 +464,79 @@ function renderAssortBody(data, offline) {
                 }).join('')}
             </div>
 
-            <div
-                id="assortNoMatch"
-                class="empty-state"
-                style="
-                    display:none;
-                    margin-top:14px;
-                "
-            >
+            <div id="assortNoMatch" class="empty-state" style="display:none; margin-top:14px;">
                 Ничего не найдено
             </div>
-
         </div>
     `;
 
-
     // поиск
-
-    const input =
-        document.getElementById('assortSearch');
-
-    if (input) {
+    const input = document.getElementById('assortSearch');
+        if (input) {
         input.addEventListener('input', () => {
-            const q =
-                input.value.trim().toLowerCase();
-
+            const q = input.value.trim().toLowerCase();
             let shown = 0;
 
-            document
-                .querySelectorAll(
-                    '#assortGrid .assort-row'
-                )
-                .forEach(tile => {
-                    const ok =
-                        !q ||
-                        tile.dataset.name.includes(q);
+            document.querySelectorAll('#assortGrid .assort-row').forEach(tile => {
+                const nameEl = tile.querySelector('.assort-tile-name');
+                const name = nameEl ? nameEl.textContent.toLowerCase() : '';
+                const ok = !q || name.includes(q);
+                tile.style.display = ok ? '' : 'none';
+                if (ok) shown++;
+            });
 
-                    tile.style.display =
-                        ok ? '' : 'none';
-
-                    if (ok) {
-                        shown++;
-                    }
-                });
-
-            const noMatch =
-                document.getElementById(
-                    'assortNoMatch'
-                );
-
+            const noMatch = document.getElementById('assortNoMatch');
             if (noMatch) {
-                noMatch.style.display =
-                    shown ? 'none' : 'block';
+                noMatch.style.display = shown ? 'none' : 'block';
             }
         });
     }
 
-
     // кнопки + / -
-
-    const grid =
-        document.getElementById('assortGrid');
-
+    const grid = document.getElementById('assortGrid');
     if (!grid) {
         updateOrderBar();
         return;
     }
 
     grid.addEventListener('click', e => {
-        const btn =
-            e.target.closest('.qty-btn');
-
+        const btn = e.target.closest('.qty-btn');
         if (!btn) return;
 
-        const tile =
-            btn.closest('.assort-row');
-
+        const tile = btn.closest('.assort-row');
         if (!tile) return;
 
-        const code =
-            tile.dataset.code;
+        const code = tile.dataset.code;
 
         setQty(
             code,
-            (order.qty[code] || 0) +
-                Number(btn.dataset.step),
+            (order.qty[code] || 0) + Number(btn.dataset.step),
             tile,
             true
         );
     });
 
-
-    
     // ручной ввод
-    
-
     grid.addEventListener('input', e => {
-        if (
-            !e.target.classList.contains(
-                'qty-input'
-            )
-        ) {
-            return;
-        }
+        if (!e.target.classList.contains('qty-input')) return;
 
-        const tile =
-            e.target.closest('.assort-row');
-
+        const tile = e.target.closest('.assort-row');
         if (!tile) return;
 
-        // оставляем в поле только цифры
-        e.target.value =
-            e.target.value
-                .replace(/\D/g, '')
-                .slice(0, 4);
+        e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4);
 
-        setQty(
-            tile.dataset.code,
-            e.target.value,
-            tile,
-            false
-        );
+        setQty(tile.dataset.code, e.target.value, tile, false);
     });
 
-
-    // возва\рат значения при уходе из поля
-
+    // возврат значения при уходе из поля
     grid.addEventListener('focusout', e => {
-        if (
-            !e.target.classList.contains(
-                'qty-input'
-            )
-        ) {
-            return;
-        }
+        if (!e.target.classList.contains('qty-input')) return;
 
-        const tile =
-            e.target.closest('.assort-row');
-
+        const tile = e.target.closest('.assort-row');
         if (!tile) return;
 
-        e.target.value =
-            order.qty[tile.dataset.code] || 0;
+        e.target.value = order.qty[tile.dataset.code] || 0;
     });
-
 
     updateOrderBar();
 }
@@ -713,25 +547,10 @@ function renderAssortBody(data, offline) {
 function assortSkeleton() {
     return `
         <div class="assort-loading">
-            <div
-                class="skeleton skeleton-title"
-                style="width:50%;"
-            ></div>
-
+            <div class="skeleton skeleton-title" style="width:50%;"></div>
             <div class="skeleton skeleton-text"></div>
-
-            <div
-                class="skeleton skeleton-title"
-                style="
-                    width:40%;
-                    margin-top:10px;
-                "
-            ></div>
-
-            <div
-                class="skeleton skeleton-text"
-                style="width:65%;"
-            ></div>
+            <div class="skeleton skeleton-title" style="width:40%; margin-top:10px;"></div>
+            <div class="skeleton skeleton-text" style="width:65%;"></div>
         </div>
     `;
 }
@@ -740,16 +559,19 @@ function assortSkeleton() {
 // открытие модалки
 
 async function openAssortModal(pointId) {
-    const point = globalData.find(
-        i => String(i.id) === String(pointId)
-    );
+    const point = globalData.find(i => String(i.id) === String(pointId));
 
     if (!point || assortLoading) return;
 
+    // проверка серверной блокировки заказов
+    if (typeof isOrderBlocked === 'function' && isOrderBlocked(point)) {
+        showToast('Заказ по этой точке уже сделан сегодня. Повтор — через 1С.', true);
+        return;
+    }
+
     rememberFocus();
 
-    const overlay =
-        ensureAssortModal();
+    const overlay = ensureAssortModal();
 
     resetOrder();
 
@@ -757,42 +579,23 @@ async function openAssortModal(pointId) {
 
     updateOrderBar();
 
-    document.getElementById(
-        'assortSub'
-    ).textContent =
+    document.getElementById('assortSub').textContent =
         `${point.point_name || 'Точка'} · код ${point.id}`;
 
-    document.getElementById(
-        'assortBody'
-    ).innerHTML =
-        assortSkeleton();
+    document.getElementById('assortBody').innerHTML = assortSkeleton();
 
     overlay.classList.add('active');
 
     assortLoading = true;
 
     try {
-        const {
-            data,
-            offline
-        } = await loadPointAssortment(
-            point.id
-        );
-
-        renderAssortBody(
-            data,
-            offline
-        );
+        const { data, offline } = await loadPointAssortment(point.id);
+        renderAssortBody(data, offline);
 
     } catch (err) {
-        const message =
-            err && err.message
-                ? err.message
-                : String(err);
+        const message = err && err.message ? err.message : String(err);
 
-        document.getElementById(
-            'assortBody'
-        ).innerHTML = `
+        document.getElementById('assortBody').innerHTML = `
             <div class="assort-error">
                 Не удалось загрузить ассортимент:
                 ${escapeHtml(message)}
@@ -800,7 +603,6 @@ async function openAssortModal(pointId) {
         `;
 
         updateOrderBar();
-
     } finally {
         assortLoading = false;
     }
@@ -810,15 +612,85 @@ async function openAssortModal(pointId) {
 // закрытие модалки
 
 function closeAssortModal() {
-    if (orderSending) {
-        return;
-    }
+    if (orderSending) return;
 
-    document
-        .getElementById('assortOverlay')
-        ?.classList.remove('active');
+    document.getElementById('assortOverlay')?.classList.remove('active');
 
     if (!getTopModal()) {
         restoreFocus();
     }
+}
+
+// ============================================================
+// МОДАЛКА ПОДТВЕРЖДЕНИЯ ЗАКАЗА
+// ============================================================
+
+function ensureOrderConfirmModal() {
+    let el = document.getElementById('orderConfirmOverlay');
+    if (el) return el;
+
+    el = document.createElement('div');
+    el.className = 'modal-overlay';
+    el.id = 'orderConfirmOverlay';
+    el.style.zIndex = '1011';
+
+    el.innerHTML = `
+        <div class="modal-box confirm-box">
+            <div class="modal-header">
+                <h3>Проверка заказа</h3>
+                <button class="modal-close" type="button" aria-label="Закрыть">✕</button>
+            </div>
+            <div class="modal-body">
+                <p style="text-align: center; margin-bottom: 15px; color: #64748b; font-size: 0.95rem;">
+                    Проверьте состав заказа перед отправкой в 1С
+                </p>
+                <div class="confirm-summary">
+                    <div class="confirm-item">
+                        <span>Всего позиций:</span>
+                        <strong id="orderConfirmCount" style="color: #0f172a; font-size: 1.2rem;">0</strong>
+                    </div>
+                    <div class="confirm-item">
+                        <span>На сумму:</span>
+                        <strong id="orderConfirmSum" style="color: #10b981; font-size: 1.2rem;">0 ₴</strong>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="justify-content: space-between;">
+                <button class="action-btn btn-secondary" type="button" id="orderConfirmBack">Назад</button>
+                <button class="action-btn btn-success" type="button" id="orderConfirmSend">Отправить в 1С</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(el);
+
+    el.querySelector('.modal-close').addEventListener('click', closeOrderConfirmModal);
+    el.querySelector('#orderConfirmBack').addEventListener('click', closeOrderConfirmModal);
+    el.querySelector('#orderConfirmSend').addEventListener('click', submitOrder);
+
+    // клик по фону закрывает
+    el.addEventListener('click', (e) => {
+        if (e.target === el) closeOrderConfirmModal();
+    });
+
+    return el;
+}
+
+function showOrderConfirm() {
+    if (orderSending || !order.canOrder) return;
+
+    const { count, sum } = orderTotals();
+    if (!count) return;
+
+    const el = ensureOrderConfirmModal();
+
+    document.getElementById('orderConfirmCount').textContent = count;
+    document.getElementById('orderConfirmSum').textContent = `${fmt(sum)} ₴`;
+
+    el.classList.add('active');
+}
+
+function closeOrderConfirmModal() {
+    if (orderSending) return;
+    document.getElementById('orderConfirmOverlay')?.classList.remove('active');
 }

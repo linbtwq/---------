@@ -59,7 +59,6 @@ body.dark-theme {
 /*
 блок 2
 основная разметка страницы
-и размеры контейнеров приложения
 */
 body {
     background-color: var(--bg);
@@ -245,6 +244,12 @@ body.dark-theme .filter-chip.active { background: var(--primary); border-color: 
     border-bottom: 1px solid var(--border);
     padding-bottom: 12px;
     gap: 12px;
+}
+.point-header > div:last-child {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: flex-end;
 }
 .point-title {
     font-size: 1.2rem;
@@ -652,6 +657,14 @@ body.dark-theme .connection-status.has-queue .status-text { color: #fbbf24; }
     white-space: nowrap;
     animation: popIn 0.4s var(--ease-bounce) 0.15s backwards;
 }
+.lock-badge.order {
+    background: #dbeafe;
+    color: #1e40af;
+}
+body.dark-theme .lock-badge.order {
+    background: #1e3a8a;
+    color: #bfdbfe;
+}
 .lock-note {
     margin-top: 16px;
     padding: 12px 14px;
@@ -662,9 +675,38 @@ body.dark-theme .connection-status.has-queue .status-text { color: #fbbf24; }
     line-height: 1.4;
     animation: fadeUp 0.4s ease 0.15s backwards;
 }
+.lock-note.order {
+    margin-top: 8px;
+    background: #eff6ff;
+    color: #1e40af;
+    border-left: 3px solid #3b82f6;
+}
+body.dark-theme .lock-note.order {
+    background: #1e293b;
+    color: #93c5fd;
+}
+
+/* маленькая кнопка внутри плашек блокировки */
+.btn-small {
+    padding: 4px 12px !important;
+    min-height: 30px !important;
+    font-size: 0.72rem !important;
+    font-weight: 600;
+    margin-top: 8px;
+    width: auto !important;
+    flex: 0 0 auto !important;
+    border-radius: var(--radius-sm);
+    line-height: 1.2;
+}
+@media (max-width: 480px) {
+    .btn-small { min-height: 34px !important; padding: 5px 14px !important; }
+}
+
 body.dark-theme .point-card.locked { background: #292524; border-color: #78350f; }
 body.dark-theme .lock-badge,
 body.dark-theme .lock-note { background: var(--warning-soft); color: var(--warning-text); }
+body.dark-theme .lock-badge.order { background: #1e3a8a; color: #bfdbfe; }
+body.dark-theme .lock-note.order { background: #1e293b; color: #93c5fd; }
 
 /*
 блок 10
@@ -848,6 +890,7 @@ body.dark-theme .app-version { color: #64748b; }
     }
     .point-card { padding: 16px; margin-bottom: 12px; }
     .point-header { align-items: flex-start; flex-direction: column; gap: 8px; }
+    .point-header > div:last-child { justify-content: flex-start; }
     .point-header > div { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; gap: 6px; }
     .point-title { font-size: 1.05rem; overflow-wrap: anywhere; }
     .point-code { display: inline-block; max-width: 100%; margin: 0 !important; }
@@ -929,7 +972,6 @@ body.dark-theme .app-version { color: #64748b; }
    АССОРТИМЕНТ + ОБЩИЕ СТИЛИ ДЛЯ СТРОК И КНОПОК + / −
    ============================================================ */
 
-/* кнопка "Ассортимент" в карточке точки */
 .action-btn[data-action="assort"] { background-color: var(--accent); }
 .action-btn[data-action="assort"]:hover:not(:disabled) { background-color: var(--accent-hover); }
 @media (hover: hover) {
@@ -938,14 +980,12 @@ body.dark-theme .app-version { color: #64748b; }
     }
 }
 
-/* окно */
 .assort-box {
     max-width: 500px;
     max-height: min(88dvh, 760px);
     background: var(--surface);
 }
 
-/* шапка */
 .assort-box .modal-header {
     padding: 18px 24px;
     min-height: 72px;
@@ -985,7 +1025,6 @@ body.dark-theme .app-version { color: #64748b; }
     flex: 0 0 40px;
 }
 
-/* тело */
 .assort-box .modal-body {
     padding: 0;
     min-height: 0;
@@ -996,7 +1035,6 @@ body.dark-theme .app-version { color: #64748b; }
     overscroll-behavior: contain;
 }
 
-/* поиск */
 .assort-top {
     position: sticky;
     top: 0;
@@ -1023,7 +1061,6 @@ body.dark-theme .app-version { color: #64748b; }
     box-shadow: 0 0 0 3px var(--primary-soft);
 }
 
-/* офлайн-плашка */
 .assort-offline {
     margin: 12px 16px 0;
     padding: 9px 12px;
@@ -1034,7 +1071,6 @@ body.dark-theme .app-version { color: #64748b; }
     line-height: 1.35;
 }
 
-/* панель */
 .assort-panel { padding: 0 24px 8px; }
 .assort-pills {
     display: flex;
@@ -1054,10 +1090,6 @@ body.dark-theme .app-version { color: #64748b; }
     color: var(--primary);
 }
 
-/* ------------------------------------------------------------
-   строки общая структура для показателей и ассортимента
-   ------------------------------------------------------------ */
-
 .assort-grid { margin-top: 4px !important; }
 
 .assort-row {
@@ -1071,7 +1103,6 @@ body.dark-theme .app-version { color: #64748b; }
 }
 .assort-row:last-child { border-bottom: none !important; }
 
-/* шапка строки */
 .assort-row-head {
     display: flex;
     justify-content: space-between;
@@ -1101,7 +1132,6 @@ body.dark-theme .app-version { color: #64748b; }
     font-weight: 600;
 }
 
-/* 3 колонки */
 .assort-row-fields {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
@@ -1128,10 +1158,6 @@ body.dark-theme .app-version { color: #64748b; }
     font-size: 0.95rem;
     font-weight: 700;
 }
-
-/* ------------------------------------------------------------
-   кнопки + / − и поле ввода
-   ------------------------------------------------------------ */
 
 .qty {
     display: flex;
@@ -1189,7 +1215,6 @@ body.dark-theme .app-version { color: #64748b; }
     border-color: var(--primary) !important;
     box-shadow: 0 0 0 3px var(--primary-soft) !important;
 }
-/* ошибка (меньше предыдущего) красный, независимо от фокуса */
 .qty .meter-input.error,
 .qty .meter-input.error:focus {
     border-color: var(--danger) !important;
@@ -1201,7 +1226,6 @@ body.dark-theme .qty .meter-input.error:focus {
     background-color: #450a0a !important;
 }
 
-/* нет результатов */
 #assortNoMatch {
     margin: 12px 0 20px;
     padding: 24px 12px;
@@ -1210,7 +1234,6 @@ body.dark-theme .qty .meter-input.error:focus {
     font-size: 0.9rem;
 }
 
-/* ошибка загрузки */
 .assort-error {
     margin: 20px;
     padding: 12px 14px;
@@ -1221,10 +1244,8 @@ body.dark-theme .qty .meter-input.error:focus {
     line-height: 1.4;
 }
 
-/* skeleton */
 .assort-loading { padding: 24px; }
 
-/* нижняя панель заказа */
 .assort-box .order-footer {
     min-height: 72px;
     display: flex;
@@ -1258,9 +1279,6 @@ body.dark-theme .qty .meter-input.error:focus {
     box-shadow: none;
 }
 
-/* ============================================================
-   МОБИЛЬНАЯ ВЕРСИЯ общая для показателей и ассортимента
-   ============================================================ */
 @media (max-width: 480px) {
     .assort-box {
         width: 100%;
@@ -1284,8 +1302,6 @@ body.dark-theme .qty .meter-input.error:focus {
     .assort-tile-name { font-size: 0.9rem; }
     .assort-row-price { font-size: 0.78rem; }
 
-    /* на мобильном  крайние колонки по содержимому,
-       центральная растягивается. так влезают кнопки + и −. */
     .assort-row-fields {
         grid-template-columns: auto minmax(0, 1fr) auto;
         gap: 6px;
@@ -1310,7 +1326,7 @@ body.dark-theme .qty .meter-input.error:focus {
     .qty .qty-input,
     .qty .meter-input {
         min-height: 44px;
-        font-size: 16px !important; /* iOS не зумит */
+        font-size: 16px !important;
     }
 
     .assort-box .order-footer {
@@ -1324,7 +1340,6 @@ body.dark-theme .qty .meter-input.error:focus {
         font-size: 0.8rem;
     }
 
-    /* в показателях кнопка "Продолжить" на всю ширину для удобного тапа */
     #modalOverlay .modal-footer { padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); }
     #modalOverlay .modal-footer .action-btn {
         flex: 1;
@@ -1333,7 +1348,6 @@ body.dark-theme .qty .meter-input.error:focus {
     }
 }
 
-/* очень узкие экраны (старые телефоны, 320–360px) */
 @media (max-width: 360px) {
     .assort-tile-name { font-size: 0.85rem; }
     .assort-row-fields > div > label { font-size: 0.65rem; }

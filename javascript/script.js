@@ -32,7 +32,9 @@ let globalData = [];
 let lastDeleteTime = 0;
 let isAtTop = false;
 let currentPointId = null;
+let currentMeterRequestId = null;
 let currentPaymentPointId = null;
+let currentPaymentRequestId = null;
 let searchMode = localStorage.getItem('searchMode');
 if (!SEARCH_MODES[searchMode]) searchMode = 'all';
 let searchTimer = null;
@@ -50,6 +52,7 @@ let lastResults = [];
 let renderedCount = 0;
 let serverDataFresh = false;
 let toastTimer = null;
+let statusTimer = null;
 let _lastStatusKey = '';
 
 const AUTO_REFRESH_INTERVAL = 60 * 1000;
@@ -166,7 +169,6 @@ document.addEventListener('DOMContentLoaded', () => {
     initEventListeners();
     initSearchFilters();
     showVersion();
-    setupMeterButtons();
 });
 
 function startApp() {
@@ -238,7 +240,8 @@ function initEventListeners() {
             if (!btn) return;
             const { action, id } = btn.dataset;
             if (action === 'open') openMeterModal(id);
-            else if (action === 'unlock') adminUnlock(id);
+            else if (action === 'unlockMeters') adminUnlock(id, 'meters');
+            else if (action === 'unlockOrders') adminUnlock(id, 'orders');
             else if (action === 'more') appendCards(results, false);
             else if (action === 'pay') openPaymentModal(id);
             else if (action === 'assort') openAssortModal(id);
@@ -273,16 +276,18 @@ function initEventListeners() {
 
     document.addEventListener('keydown', onKeyDown);
 
-    setInterval(() => {
+        if (statusTimer) clearInterval(statusTimer);
+    statusTimer = setInterval(() => {
         if (document.visibilityState === 'visible' && currentUser) renderStatus();
     }, 15000);
 
+    setupMeterButtons();
     initBackToTop();
     renderStatus();
     scheduleSyncRetry();
 }
 
-// клик по + / − и ручной ввод в строках показателей
+// клики по + / − и ручной ввод в строках показателей
 function setupMeterButtons() {
     const container = document.getElementById('modalBody');
     if (!container) return;
@@ -306,7 +311,6 @@ function setupMeterButtons() {
 
     container.addEventListener('input', (e) => {
         if (!e.target.classList.contains('meter-input')) return;
-        // оставляем только цифры
         e.target.value = e.target.value.replace(/\D/g, '').slice(0, 7);
         calculateRowTotal(e.target);
     });
@@ -490,7 +494,6 @@ function filterPoints(query, mode = searchMode) {
     const isDigits = /^\d+$/.test(q);
     const num = stripZeros(q);
 
-    // "0" или пустой запрос цифрами - показываем все
     if (isDigits && num === '') {
         const list = mode === 'machine'
             ? globalData.filter(i => i.coffee_machine_code || i.coffee_machine)
@@ -500,24 +503,21 @@ function filterPoints(query, mode = searchMode) {
 
     let results = globalData.filter(i => {
         const data = ix(i);
-        
-        // проверяем все возможные совпадения
+
         const matchId = isDigits && (data.id === num);
         const matchMachineCode = isDigits && (data.mc === num);
         const matchMachineRaw = data.mcRaw.includes(q);
-        
+
         if (mode === 'machine') {
             return data.machine.includes(q) || matchMachineCode || matchMachineRaw;
         }
         if (mode === 'point') {
             return data.name.includes(q) || matchId;
         }
-        
-        // вежим "Все" ищем по тексту, ID точки, коду машины и части кода
+
         return data.all.includes(q) || matchId || matchMachineCode || matchMachineRaw;
     });
 
-    // сортировка точные совпадения по номеру точки или коду машины всплывают наверх
     if (isDigits) {
         results.sort((a, b) => {
             const aExact = (ix(a).id === num || ix(a).mc === num) ? 1 : 0;
@@ -536,13 +536,15 @@ function filterPoints(query, mode = searchMode) {
 // с данными по адресу, долгу и состоянию блокировки
 
 function cardHtml(item, idx) {
-    const lock = getPointLock(item);
-    const blocked = lock && !isUnlimitedUser();
+    const meterLock = getMeterLock(item);
+    const orderLock = getOrderLock(item);
+    const meterBlocked = meterLock && !isUnlimitedUser();
+    const orderBlocked = orderLock && !isUnlimitedUser();
     const id = escapeHtml(item.id);
-    
+
     const debt = Number(item.debt) || 0;
-    const debtHtml = debt > 0 
-        ? `<div class="info-item"><span class="debt-label">Борг</span><span class="debt-value red">${fmt(debt)} ₴</span></div>` 
+    const debtHtml = debt > 0
+        ? `<div class="info-item"><span class="debt-label">Борг</span><span class="debt-value red">${fmt(debt)} ₴</span></div>`
         : `<div class="info-item"><span class="debt-label">Борг</span><span class="debt-value green">0 ₴</span></div>`;
 
     let machineDisplay = escapeHtml(item.coffee_machine) || '—';
@@ -551,37 +553,51 @@ function cardHtml(item, idx) {
         machineDisplay = item.coffee_machine ? `${machineDisplay} ${machineCode}` : machineCode;
     }
 
+    const badges =
+        (meterBlocked ? `<span class="lock-badge">Показатели сняты</span>` : '') +
+        (orderBlocked ? `<span class="lock-badge order">Заказ сделан</span>` : '');
+
+        const notes = `
+        ${meterLock ? `<div class="lock-note">
+            Показатели по этой точке уже внесены${lockTimeText(meterLock)}.${
+                isUnlimitedUser() ? '' : ' Для изменений позвоните в 1С.'
+            }
+            ${meterLock.pending ? '<br><b>Ожидает отправки в 1С (нет связи).</b>' : ''}
+            ${isUnlimitedUser() ? `<button class="action-btn btn-secondary btn-small" data-action="unlockMeters" data-id="${id}">Снять блок</button>` : ''}
+        </div>` : ''}
+        ${orderLock ? `<div class="lock-note order">
+            Заказ пополнения уже сделан${lockTimeText(orderLock)}.${
+                isUnlimitedUser() ? '' : ' Повторный заказ — через 1С.'
+            }
+            ${isUnlimitedUser() ? `<button class="action-btn btn-secondary btn-small" data-action="unlockOrders" data-id="${id}">Снять блок</button>` : ''}
+        </div>` : ''}
+    `;
+
     return `
-        <div class="point-card${lock ? ' locked' : ''}" style="--i:${idx}" data-rendered="1">
+        <div class="point-card${(meterLock || orderLock) ? ' locked' : ''}" style="--i:${idx}" data-rendered="1">
             <div class="point-header">
                 <div>
                     <span class="point-title">${escapeHtml(item.point_name) || 'Без названия'}</span>
                     <span class="point-code" style="margin-left: 10px;">Код: ${id}</span>
                 </div>
-                ${blocked ? `<span class="lock-badge">🔒 Снято</span>` : ''}
+                ${badges}
             </div>
-            
+
             <div class="point-grid">
                 <div class="info-item"><label>Контрагент</label><span>${escapeHtml(item.counterparty) || '—'}</span></div>
                 <div class="info-item"><label>Адрес</label><span>${escapeHtml(item.address) || '—'}</span></div>
                 <div class="info-item machine-info"><label>Оборудование</label><span class="${item.coffee_machine ? 'machine-tag' : ''}">${machineDisplay}</span></div>
-                
+
                 ${debtHtml}
             </div>
 
-            <!-- Три кнопки внизу -->
             <div class="card-actions">
-                <button class="action-btn" data-action="open" data-id="${id}" ${blocked ? 'disabled' : ''}>Показатели</button>
+                <button class="action-btn" data-action="open" data-id="${id}" ${meterBlocked ? 'disabled' : ''}>Показатели</button>
                 <button class="action-btn btn-success" data-action="pay" data-id="${id}" ${debt > 0 ? '' : 'disabled'}>Оплата боргу</button>
-                <button class="action-btn btn-secondary" data-action="assort" data-id="${id}">Ассортимент</button>
+                <button class="action-btn btn-secondary" data-action="assort" data-id="${id}" ${orderBlocked ? 'disabled' : ''}>Ассортимент</button>
             </div>
 
-            ${lock ? `
-            <div class="lock-note">
-                Показатели по этой точке уже внесены${lockTimeText(lock)}.${isUnlimitedUser() ? ' На вас лимит не распространяется.' : ' Для изменений позвоните в 1С.'}
-                ${lock.pending ? '<br><b>Ожидает отправки в 1С (нет связи).</b>' : ''}
-                ${isUnlimitedUser() && !lock.server ? `<br><button class="action-btn btn-secondary" style="margin-top:8px" data-action="unlock" data-id="${id}">Снять блок</button>` : ''}
-            </div>` : ''}
+            ${notes}
         </div>`;
 }
 
@@ -608,8 +624,10 @@ function renderResults(data) {
     const container = document.getElementById('resultsContainer');
     if (!container) return;
 
-    const key = data.map(i => `${i.id}:${getPointLock(i) ? 1 : 0}`).join('|')
-        + (isUnlimitedUser() ? '|u' : '') + '|' + searchMode;
+    const key = data.map(i =>
+        `${i.id}:${getMeterLock(i) ? 1 : 0}:${getOrderLock(i) ? 1 : 0}`
+    ).join('|') + (isUnlimitedUser() ? '|u' : '') + '|' + searchMode;
+
     const first = container.firstElementChild;
     if (container.dataset.renderKey === key && first && first.hasAttribute('data-rendered')) return;
     container.dataset.renderKey = key;
@@ -633,12 +651,15 @@ function renderResults(data) {
 function openMeterModal(pointId) {
     const item = globalData.find(i => String(i.id) === String(pointId));
     if (!item) return;
-    if (isPointBlocked(item)) {
+    if (isMeterBlocked(item)) {
         showToast('По этой точке показатели уже сняты. Изменения — через 1С.', true);
         return;
     }
     rememberFocus();
     currentPointId = item.id;
+    // request_id создаём здесь — один раз на сессию ввода, чтобы повтор
+    // из-за таймаута не создавал второй документ
+    currentMeterRequestId = newRequestId();
 
     const modalSub = document.getElementById('modalSub');
     if (modalSub) modalSub.textContent = `${item.point_name || 'Точка'} · код ${item.id}`;
@@ -704,7 +725,6 @@ function openMeterModal(pointId) {
     const proceedBtn = document.querySelector('#modalOverlay .modal-footer .action-btn');
     if (proceedBtn) proceedBtn.disabled = !hasAssortment;
 
-    // первый расчёт сумм (все строки начнут с 0 ₴)
     document.querySelectorAll('#modalBody [data-drink-row] .meter-input')
         .forEach(inp => calculateRowTotal(inp));
 
@@ -724,7 +744,8 @@ function calculateRowTotal(input) {
         errorHint = document.createElement('div');
         errorHint.className = 'error-hint';
         errorHint.textContent = 'Меньше предыдущего!';
-        row.querySelector('.assort-row-fields > div:nth-child(2)').appendChild(errorHint);
+        const wrap = input.closest('.assort-row-fields > div') || input.parentNode;
+        wrap.appendChild(errorHint);
     }
 
     if (!isBlank && newVal < lastMeter) {
@@ -778,6 +799,7 @@ function openPaymentModal(pointId) {
     if (!item) return;
     rememberFocus();
     currentPaymentPointId = item.id;
+    currentPaymentRequestId = newRequestId();
     const debt = Number(item.debt) || 0;
 
     document.getElementById('paymentPointName').textContent = item.point_name || 'Без названия';
@@ -797,6 +819,7 @@ function openPaymentModal(pointId) {
 function closePaymentModal() {
     document.getElementById('paymentOverlay')?.classList.remove('active');
     currentPaymentPointId = null;
+    currentPaymentRequestId = null;
     if (!getTopModal()) restoreFocus();
 }
 
@@ -836,7 +859,7 @@ async function submitPayment() {
         point_id: pointId,
         technician_id: currentUser ? currentUser.id : '',
         amount,
-        request_id: newRequestId()
+        request_id: currentPaymentRequestId || newRequestId()
     };
 
     try {
@@ -870,8 +893,6 @@ async function submitPayment() {
 
 // блок 10
 // отправка показателей
-// формируется запрос на сохранение данных и выполняется
-// обычная или офлайн отправка в 1с
 
 async function applyDebtDelta(pointId, delta) {
     if (!delta) return;
@@ -885,7 +906,7 @@ async function applyDebtDelta(pointId, delta) {
 async function submitMeters() {
     const pointId = currentPointId;
     const currentItem = globalData.find(i => String(i.id) === String(pointId));
-    if (currentItem && isPointBlocked(currentItem)) {
+    if (currentItem && isMeterBlocked(currentItem)) {
         showToast('По этой точке показатели уже сняты. Изменения — через 1С.', true);
         finishSubmission();
         return;
@@ -912,7 +933,7 @@ async function submitMeters() {
     const payload = {
         point_id: pointId,
         technician_id: currentUser ? currentUser.id : "",
-        request_id: newRequestId(),
+        request_id: currentMeterRequestId || newRequestId(),
         meters: metersData
     };
 
@@ -941,14 +962,18 @@ async function submitMeters() {
         }
         if (!response.ok) throw new Error(await response.text() || 'Ошибка сервера 1С');
 
-        // ответ 1С: { ok, sum, debt_error }
         let body = null;
         try { body = await response.json(); } catch (e) {}
+
+        // если 1С явно сказала, что не ок — не блокируем, показываем ошибку
+        if (body && body.ok === false) {
+            showToast(body.error || body.debt_error || '1С отклонила документ.', true);
+            return;
+        }
 
         lockPoint(pointId);
 
         if (body && body.debt_error) {
-            // документ создан, но долг в регистре не записался
             console.error('[1С] долг не начислен:', body.debt_error);
             showToast('Документ создан, но ДОЛГ НЕ НАЧИСЛЕН: ' + String(body.debt_error).slice(0, 150), true);
         } else {
@@ -974,14 +999,12 @@ async function submitMeters() {
     }
 }
 
-function finishSubmission() {
-    closeConfirmModal();
-    closeModal();
-    currentPointId = null;
-
+// единая точка возврата на экран поиска
+function resetToSearchScreen() {
     const searchInput = document.getElementById('searchInput');
     const searchContainer = document.getElementById('searchContainer');
     const resultsContainer = document.getElementById('resultsContainer');
+
     if (searchInput) searchInput.value = '';
     if (searchContainer) {
         searchContainer.classList.remove('top');
@@ -993,6 +1016,15 @@ function finishSubmission() {
         delete resultsContainer.dataset.renderKey;
     }
     isAtTop = false;
+}
+
+function finishSubmission() {
+    closeConfirmModal();
+    closeModal();
+    currentPointId = null;
+    currentMeterRequestId = null;
+
+    resetToSearchScreen();
 
     if (AUTO_LOGOUT_AFTER_SUBMIT && typeof logout === 'function') logout();
 }
@@ -1011,8 +1043,6 @@ function resetBtn(btn, text) {
 
 // блок 11
 // офлайн очередь
-// если связь пропадает данные сохраняются локально
-// и потом отправляются автоматически при восстановлении соединения
 
 function saveOffline(payload) {
     const offlineQueue = readQueue();
@@ -1080,7 +1110,8 @@ async function runSync({ manual, quiet }) {
             netFail = true;
             console.warn('[sync] нет связи с 1С:', err.message);
             setConnectionStatus(false);
-            break;
+            // не прерываем очередь — продолжаем, следующая запись может пройти
+            continue;
         }
     }
 
@@ -1103,8 +1134,6 @@ async function runSync({ manual, quiet }) {
 
 // блок 12
 // уведомления и статус
-// здесь показываются сообщения о результате действий
-// и текущем состоянии соединения с 1с
 
 function showSuccessAnimation() {
     const el = document.createElement('div');
@@ -1148,8 +1177,14 @@ function renderStatus() {
             : `${Math.floor(sec / 3600)} ч назад`;
     }
 
-    const key = `${connectionOnline}|${queued}|${lastSyncError}|${timeText}|${isLoading ? 1 : 0}`;
-    _lastStatusKey = key;
+    // время обновляем всегда — оно не входит в ключ
+    const timeEl = box.querySelector('.status-time');
+    if (timeEl) timeEl.textContent = timeText;
+
+    // ключ без времени — чтобы не перерисовывать классы каждые 15 сек
+    const stateKey = `${connectionOnline}|${queued}|${lastSyncError}|${isLoading ? 1 : 0}`;
+    if (stateKey === _lastStatusKey) return;
+    _lastStatusKey = stateKey;
 
     box.className = 'connection-status'
         + (connectionOnline === true ? ' online' : connectionOnline === false ? ' offline' : '')
@@ -1163,16 +1198,13 @@ function renderStatus() {
     const textEl = box.querySelector('.status-text');
     if (textEl) textEl.textContent = text;
 
-    const timeEl = box.querySelector('.status-time');
-    if (timeEl) timeEl.textContent = timeText;
-
     box.title = 'Нажмите для обновления' + (lastSyncError ? ` (${lastSyncError})` : '');
 }
 
 // блок 13
 // блокировка точек
-// после успешного внесения показателей точка становится недоступной
-// для повторного ввода до истечения лимита или до сброса админом
+// показатели блокируются сервером + локально до конца дня
+// заказы пополнения — только сервером (по факту проведения документа)
 
 function computeLockUntil() {
     const now = new Date();
@@ -1199,7 +1231,8 @@ function markSynced(pointId) {
     if (lock) { lock.pending = false; saveLocks(locks); }
 }
 
-function getPointLock(item) {
+// блокировка показателей — серверная или pending из офлайн-очереди
+function getMeterLock(item) {
     const id = String(item.id);
     const locks = getLocks();
     let local = locks[id] || null;
@@ -1221,12 +1254,24 @@ function getPointLock(item) {
     return local;
 }
 
+// блокировка заказов — только серверная (заказ офлайн невозможен)
+function getOrderLock(item) {
+    if (item.order_locked === true) {
+        return { server: true, at: item.order_locked_at || null };
+    }
+    return null;
+}
+
 function isUnlimitedUser() {
     return !!currentUser && UNLIMITED_USER_IDS.includes(String(currentUser.id));
 }
 
-function isPointBlocked(item) {
-    return !!getPointLock(item) && !isUnlimitedUser();
+function isMeterBlocked(item) {
+    return !!getMeterLock(item) && !isUnlimitedUser();
+}
+
+function isOrderBlocked(item) {
+    return !!getOrderLock(item) && !isUnlimitedUser();
 }
 
 function lockTimeText(lock) {
@@ -1238,32 +1283,48 @@ function lockTimeText(lock) {
     return ` (${lock.at})`;
 }
 
-function unlockTimeText(lock) {
-    if (!lock || lock.pending || lock.server) return '';
-    if (!lock.until || lock.until <= Date.now()) return '';
-
-    const until = new Date(lock.until);
-    const hh = String(until.getHours()).padStart(2, '0');
-    const mm = String(until.getMinutes()).padStart(2, '0');
-
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    let dayLabel;
-    if (until.toDateString() === today.toDateString()) dayLabel = 'сегодня';
-    else if (until.toDateString() === tomorrow.toDateString()) dayLabel = 'завтра';
-    else dayLabel = until.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
-
-    return `${dayLabel} в ${hh}:${mm}`;
-}
-
-function adminUnlock(pointId) {
+async function adminUnlock(pointId, type = 'meters') {
     if (!isUnlimitedUser()) return;
-    const locks = getLocks();
-    delete locks[String(pointId)];
-    saveLocks(locks);
-    showToast('Локальная блокировка снята');
+
+    // 1. локальная часть только для показателей
+    if (type === 'meters') {
+        const locks = getLocks();
+        delete locks[String(pointId)];
+        saveLocks(locks);
+    }
+
+    // 2. запрос на сервер снимаем серверную блокировку
+    showToast('Снимаем блок...');
+
+    try {
+        const res = await fetchWithTimeout(
+            `${apiBase}/admin_unlock?v=${APP_CONFIG.apiVersion}`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-User-Code': currentUser ? currentUser.id : ''
+                },
+                body: JSON.stringify({ point_id: pointId, type })
+            },
+            APP_CONFIG.sendTimeoutMs
+        );
+
+        if (!res.ok) {
+            const errText = await res.text();
+            throw new Error(errText.slice(0, 150) || 'Ошибка сервера 1С');
+        }
+
+        showToast('Блокировка снята');
+
+    } catch (err) {
+        const message = err && err.message ? err.message : String(err);
+        showToast(`Не удалось снять блок на сервере: ${message}`, true);
+    }
+
+    // 3. обновляем данные и перерисовываем
+    await loadData({ silent: true });
+
     const searchInput = document.getElementById('searchInput');
     if (searchInput && searchInput.value.trim() !== '') {
         handleSearch({ target: { value: searchInput.value } });
@@ -1272,8 +1333,6 @@ function adminUnlock(pointId) {
 
 // блок 14
 // сброс при выходе
-// здесь очищается пользовательское состояние
-// и интерфейс чтобы следующий вход не оставлял лишних данных
 
 function resetAppState() {
     globalData = [];
@@ -1288,13 +1347,20 @@ function resetAppState() {
     connectionOnline = null;
     serverDataFresh = false;
     currentPointId = null;
+    currentMeterRequestId = null;
     currentPaymentPointId = null;
+    currentPaymentRequestId = null;
     isAtTop = false;
     _lastStatusKey = '';
     clearTimeout(searchTimer);
     cancelAnimationFrame(renderFrame);
-    clearTimeout(retryTimer);
+        clearTimeout(retryTimer);
     clearTimeout(toastTimer);
+    if (statusTimer) {
+        clearInterval(statusTimer);
+        statusTimer = null;
+    }
+    _lastStatusKey = '';
     stopAutoRefresh();
 
     const results = document.getElementById('resultsContainer');
@@ -1316,8 +1382,6 @@ function resetAppState() {
 
 // блок 15
 // esc и фокус модалок
-// здесь обеспечивается корректная работа клавиатуры и возврат фокуса
-// после закрытия окна
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -1393,8 +1457,6 @@ function autofocusModal(modal) {
 
 // блок 16
 // автообновление и ручное обновление
-// периодически обновляются данные и синхронизируется очередь
-// при необходимости пользователь может обновить их вручную
 
 function startAutoRefresh() {
     stopAutoRefresh();
