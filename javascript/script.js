@@ -175,10 +175,12 @@ function startApp() {
     loadData();
     if (navigator.onLine) syncOfflineMeters();
     startAutoRefresh();
-    setTimeout(() => {
-        const searchInput = document.getElementById('searchInput');
-        if (searchInput) searchInput.focus();
-    }, 250);
+        if (window.innerWidth > 480) {
+        setTimeout(() => {
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput) searchInput.focus();
+        }, 250);
+    }
 }
 
 function initServiceWorker() {
@@ -240,8 +242,6 @@ function initEventListeners() {
             if (!btn) return;
             const { action, id } = btn.dataset;
             if (action === 'open') openMeterModal(id);
-            else if (action === 'unlockMeters') adminUnlock(id, 'meters');
-            else if (action === 'unlockOrders') adminUnlock(id, 'orders');
             else if (action === 'more') appendCards(results, false);
             else if (action === 'pay') openPaymentModal(id);
             else if (action === 'assort') openAssortModal(id);
@@ -557,19 +557,17 @@ function cardHtml(item, idx) {
         (meterBlocked ? `<span class="lock-badge">Показатели сняты</span>` : '') +
         (orderBlocked ? `<span class="lock-badge order">Заказ сделан</span>` : '');
 
-        const notes = `
+    const notes = `
         ${meterLock ? `<div class="lock-note">
             Показатели по этой точке уже внесены${lockTimeText(meterLock)}.${
                 isUnlimitedUser() ? '' : ' Для изменений позвоните в 1С.'
             }
             ${meterLock.pending ? '<br><b>Ожидает отправки в 1С (нет связи).</b>' : ''}
-            ${isUnlimitedUser() ? `<button class="action-btn btn-secondary btn-small" data-action="unlockMeters" data-id="${id}">Снять блок</button>` : ''}
         </div>` : ''}
         ${orderLock ? `<div class="lock-note order">
             Заказ пополнения уже сделан${lockTimeText(orderLock)}.${
                 isUnlimitedUser() ? '' : ' Повторный заказ — через 1С.'
             }
-            ${isUnlimitedUser() ? `<button class="action-btn btn-secondary btn-small" data-action="unlockOrders" data-id="${id}">Снять блок</button>` : ''}
         </div>` : ''}
     `;
 
@@ -1281,54 +1279,6 @@ function lockTimeText(lock) {
         return ` в ${t}`;
     }
     return ` (${lock.at})`;
-}
-
-async function adminUnlock(pointId, type = 'meters') {
-    if (!isUnlimitedUser()) return;
-
-    // 1. локальная часть только для показателей
-    if (type === 'meters') {
-        const locks = getLocks();
-        delete locks[String(pointId)];
-        saveLocks(locks);
-    }
-
-    // 2. запрос на сервер снимаем серверную блокировку
-    showToast('Снимаем блок...');
-
-    try {
-        const res = await fetchWithTimeout(
-            `${apiBase}/admin_unlock?v=${APP_CONFIG.apiVersion}`,
-            {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-User-Code': currentUser ? currentUser.id : ''
-                },
-                body: JSON.stringify({ point_id: pointId, type })
-            },
-            APP_CONFIG.sendTimeoutMs
-        );
-
-        if (!res.ok) {
-            const errText = await res.text();
-            throw new Error(errText.slice(0, 150) || 'Ошибка сервера 1С');
-        }
-
-        showToast('Блокировка снята');
-
-    } catch (err) {
-        const message = err && err.message ? err.message : String(err);
-        showToast(`Не удалось снять блок на сервере: ${message}`, true);
-    }
-
-    // 3. обновляем данные и перерисовываем
-    await loadData({ silent: true });
-
-    const searchInput = document.getElementById('searchInput');
-    if (searchInput && searchInput.value.trim() !== '') {
-        handleSearch({ target: { value: searchInput.value } });
-    }
 }
 
 // блок 14
