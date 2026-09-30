@@ -166,6 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initEventListeners();
     initSearchFilters();
     showVersion();
+    setupMeterButtons();
 });
 
 function startApp() {
@@ -279,6 +280,36 @@ function initEventListeners() {
     initBackToTop();
     renderStatus();
     scheduleSyncRetry();
+}
+
+// клик по + / − и ручной ввод в строках показателей
+function setupMeterButtons() {
+    const container = document.getElementById('modalBody');
+    if (!container) return;
+
+    container.addEventListener('click', (e) => {
+        const btn = e.target.closest('.qty-btn');
+        if (!btn) return;
+
+        const row = btn.closest('[data-drink-row]');
+        if (!row) return;
+
+        const input = row.querySelector('.meter-input');
+        if (!input) return;
+
+        const step = Number(btn.dataset.step) || 0;
+        const current = Number(input.value) || 0;
+
+        input.value = Math.max(0, current + step);
+        calculateRowTotal(input);
+    });
+
+    container.addEventListener('input', (e) => {
+        if (!e.target.classList.contains('meter-input')) return;
+        // оставляем только цифры
+        e.target.value = e.target.value.replace(/\D/g, '').slice(0, 7);
+        calculateRowTotal(e.target);
+    });
 }
 
 function initBackToTop() {
@@ -608,47 +639,74 @@ function openMeterModal(pointId) {
     }
     rememberFocus();
     currentPointId = item.id;
-    document.getElementById('modalTitle').textContent = `Точка: ${item.point_name}`;
 
-    let assortmentHtml = '';
+    const modalSub = document.getElementById('modalSub');
+    if (modalSub) modalSub.textContent = `${item.point_name || 'Точка'} · код ${item.id}`;
+
+    let bodyHtml;
     if (item.assortment && item.assortment.length > 0) {
-        assortmentHtml = item.assortment.map(drink => {
-            const price = drink.price || 0;
-            const lastMeter = drink.last_meter || 0;
+        const prices = item.assortment.map(d => Number(d.price) || 0);
+        const min = Math.min(...prices), max = Math.max(...prices);
+        const priceText = min === max ? `${fmt(min)} ₴` : `${fmt(min)}–${fmt(max)} ₴`;
+
+        const rowsHtml = item.assortment.map(drink => {
+            const price = Number(drink.price) || 0;
+            const lastMeter = Number(drink.last_meter) || 0;
             return `
-                <div class="meter-input-group" data-drink-row style="margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px dashed #e2e8f0;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 6px; align-items: center;">
-                        <strong class="drink-name" style="color: #0f172a; font-size: 0.95rem;">${escapeHtml(drink.name) || 'Без названия'}</strong>
-                        <span style="font-size: 0.85rem; color: #64748b;">Цена: <strong>${fmt(price)} ₴</strong></span>
+                <div class="meter-input-group assort-row" data-drink-row>
+                    <div class="assort-row-head">
+                        <strong class="assort-tile-name drink-name">${escapeHtml(drink.name) || 'Без названия'}</strong>
+                        <span class="assort-row-price">Цена: <strong>${fmt(price)} ₴</strong></span>
                     </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; align-items: flex-start;">
+                    <div class="assort-row-fields">
                         <div>
-                            <label style="font-size: 0.75rem; color: #64748b;">Было</label>
-                            <div style="font-weight: 600; padding: 8px 0;">${fmt(lastMeter)}</div>
+                            <label>Было</label>
+                            <div class="assort-field-static">${fmt(lastMeter)}</div>
                         </div>
                         <div>
-                            <label style="font-size: 0.75rem; color: #64748b;">Новый счетчик</label>
-                            <input type="number" inputmode="numeric" pattern="[0-9]*" class="meter-input" placeholder="0" value="${lastMeter}"
-                                   data-price="${price}" data-last="${lastMeter}" oninput="calculateRowTotal(this)" onfocus="this.select()">
+                            <label>Новый</label>
+                            <div class="qty">
+                                <button type="button" class="qty-btn" data-step="-1" aria-label="Меньше">−</button>
+                                <input type="text" inputmode="numeric" pattern="[0-9]*"
+                                       class="meter-input qty-input"
+                                       value="${lastMeter}"
+                                       data-price="${price}"
+                                       data-last="${lastMeter}">
+                                <button type="button" class="qty-btn" data-step="1" aria-label="Больше">+</button>
+                            </div>
                         </div>
                         <div>
-                            <label style="font-size: 0.75rem; color: #64748b;">Итого сумма</label>
-                            <div class="row-total" style="font-weight: 700; color: #10b981; padding: 8px 0;">0 ₴</div>
+                            <label>Итого</label>
+                            <div class="row-total assort-row-total">0 ₴</div>
                         </div>
                     </div>
                 </div>
             `;
         }).join('');
+
+        bodyHtml = `
+            <div class="assort-panel">
+                <div class="assort-pills">
+                    <span class="assort-pill">${item.assortment.length} поз.</span>
+                    <span class="assort-pill price">${priceText}</span>
+                </div>
+                <div class="assort-grid">${rowsHtml}</div>
+            </div>
+        `;
     } else {
-        assortmentHtml = `<div class="empty-state" style="padding: 20px;">Для оборудования ассортимент не заполнен в 1С.</div>`;
+        bodyHtml = `<div class="empty-state" style="padding: 20px;">Для оборудования ассортимент не заполнен в 1С.</div>`;
     }
 
-    document.getElementById('modalBody').innerHTML = `<div style="max-height: 50vh; overflow-y: auto; padding-right: 5px;">${assortmentHtml}</div>`;
+    document.getElementById('modalBody').innerHTML = bodyHtml;
     document.getElementById('modalOverlay').classList.add('active');
 
     const hasAssortment = Array.isArray(item.assortment) && item.assortment.length > 0;
     const proceedBtn = document.querySelector('#modalOverlay .modal-footer .action-btn');
     if (proceedBtn) proceedBtn.disabled = !hasAssortment;
+
+    // первый расчёт сумм (все строки начнут с 0 ₴)
+    document.querySelectorAll('#modalBody [data-drink-row] .meter-input')
+        .forEach(inp => calculateRowTotal(inp));
 
     autofocusModal(document.getElementById('modalOverlay'));
 }
@@ -666,7 +724,7 @@ function calculateRowTotal(input) {
         errorHint = document.createElement('div');
         errorHint.className = 'error-hint';
         errorHint.textContent = 'Меньше предыдущего!';
-        input.parentNode.appendChild(errorHint);
+        row.querySelector('.assort-row-fields > div:nth-child(2)').appendChild(errorHint);
     }
 
     if (!isBlank && newVal < lastMeter) {

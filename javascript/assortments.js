@@ -1,28 +1,27 @@
-// javascript/assortments.js
-// версия 6: ассортимент + заказ пополнения
+// ассортимент + заказ пополнения
 // строки оформлены как в окне "Показатели"
 //
-// Подключается в index.html ПОСЛЕ script.js.
+// подключается в index.html ПОСЛЕ script.js.
 //
-// Использует глобальные из script.js:
+// использует глобальные из script.js:
 // apiBase, fetchWithTimeout, localDB, globalData,
 // escapeHtml, fmt, rememberFocus, restoreFocus, getTopModal, APP_CONFIG,
 // newRequestId, showToast, showSuccessAnimation, setBtnLoading, resetBtn,
 // currentUser, closeAssortModal (заглушка в script.js).
 //
-// Данные:
+// данные:
 // GET {apiBase}/assortments?point=<код точки>
 //
-// Ответ 1С:
+// ответ 1С:
 // [{ Code, Name, price, minStock }, ...]
 //
-// Служебные ответы приходят как один элемент с Code "0"
+// служебные ответы приходят как один элемент с Code "0"
 // и текстом в Name.
 //
-// Заказ:
+// заказ:
 // POST {apiBase}/orders
 //
-// Тело:
+// тело:
 // {
 //     point_id,
 //     technician_id,
@@ -34,7 +33,7 @@
 let assortLoading = false;
 let orderSending = false;
 
-// Состояние текущего заказа
+// состояние текущего заказа
 const order = {
     pointId: null,
     qty: {},          // { код позиции: количество }
@@ -63,9 +62,7 @@ function ensureAssortModal() {
 
     el.innerHTML = `
         <div class="modal-box assort-box">
-            <div class="modal-header">
-                <span class="assort-icon">☕</span>
-
+                        <div class="modal-header">
                 <div class="assort-head">
                     <h3>Ассортимент</h3>
                     <div class="assort-sub" id="assortSub"></div>
@@ -88,12 +85,6 @@ function ensureAssortModal() {
                 ></div>
 
                 <button
-                    class="action-btn btn-secondary"
-                    type="button"
-                    id="assortCloseBtn"
-                >Закрыть</button>
-
-                <button
                     class="action-btn btn-success"
                     type="button"
                     id="orderSendBtn"
@@ -107,9 +98,6 @@ function ensureAssortModal() {
     document.body.appendChild(el);
 
     el.querySelector('.modal-close')
-        .addEventListener('click', closeAssortModal);
-
-    el.querySelector('#assortCloseBtn')
         .addEventListener('click', closeAssortModal);
 
     el.querySelector('#orderSendBtn')
@@ -144,7 +132,7 @@ async function loadPointAssortment(pointId) {
         try {
             await localDB.save(key, data);
         } catch (e) {
-            // Кэш не критичен
+            //кэш не критичен
         }
 
         return {
@@ -163,7 +151,7 @@ async function loadPointAssortment(pointId) {
                 };
             }
         } catch (e) {
-            // Ошибка чтения кэша
+            // ошибка чтения кэша
         }
 
         throw err;
@@ -171,9 +159,7 @@ async function loadPointAssortment(pointId) {
 }
 
 
-// ============================================================
-// ЗАКАЗ
-// ============================================================
+// заказ 
 
 function orderTotals() {
     let count = 0;
@@ -232,7 +218,7 @@ function setQty(code, value, tile, syncInput) {
         delete order.qty[code];
     }
 
-    // Состав заказа изменился — это уже другой заказ
+    // состав заказа изменился это уже другой заказ
     order.requestId = null;
 
     tile.classList.toggle('picked', q > 0);
@@ -297,12 +283,14 @@ async function submitOrder() {
     const btn =
         document.getElementById('orderSendBtn');
 
+    // кнопки "Закрыть" в футере больше нет — блокируем крестик в шапке,
+    // чтобы во время отправки заказ нельзя было прервать закрытием окна
     const closeBtn =
-        document.getElementById('assortCloseBtn');
+        document.querySelector('#assortOverlay .modal-close');
 
     orderSending = true;
 
-    closeBtn.disabled = true;
+    if (closeBtn) closeBtn.disabled = true;
 
     setBtnLoading(btn, 'Отправка...');
 
@@ -360,7 +348,7 @@ async function submitOrder() {
     } finally {
         orderSending = false;
 
-        closeBtn.disabled = false;
+        if (closeBtn) closeBtn.disabled = false;
 
         resetBtn(btn, 'Заказать');
 
@@ -369,16 +357,14 @@ async function submitOrder() {
 }
 
 
-// ============================================================
-// ОТРИСОВКА
-// ============================================================
+// отрисовка тела модалки с ассортиментом
 
 function renderAssortBody(data, offline) {
     const body = document.getElementById('assortBody');
 
     order.canOrder = false;
 
-    // Служебное сообщение от 1С:
+    // служебное сообщение от 1С
     // один элемент с Code "0"
     if (
         data.length === 1 &&
@@ -398,7 +384,7 @@ function renderAssortBody(data, offline) {
         return;
     }
 
-    // Пустой ассортимент
+    // пустой ассортимент
     if (!data.length) {
         body.innerHTML = `
             <div
@@ -414,7 +400,7 @@ function renderAssortBody(data, offline) {
         return;
     }
 
-    // Заказывать можно только при онлайн-загрузке
+    // заказывать можно только при онлайн-загрузке
     order.canOrder = !offline;
 
     order.items = {};
@@ -490,6 +476,7 @@ function renderAssortBody(data, offline) {
 
             <div
                 id="assortGrid"
+                class="assort-grid"
                 style="margin-top:14px;"
             >
                 ${data.map((it) => {
@@ -587,9 +574,7 @@ function renderAssortBody(data, offline) {
     `;
 
 
-    // ========================================================
-    // ПОИСК
-    // ========================================================
+    // поиск
 
     const input =
         document.getElementById('assortSearch');
@@ -631,9 +616,7 @@ function renderAssortBody(data, offline) {
     }
 
 
-    // ========================================================
-    // КНОПКИ + / -
-    // ========================================================
+    // кнопки + / -
 
     const grid =
         document.getElementById('assortGrid');
@@ -667,9 +650,9 @@ function renderAssortBody(data, offline) {
     });
 
 
-    // ========================================================
-    // РУЧНОЙ ВВОД КОЛИЧЕСТВА
-    // ========================================================
+    
+    // ручной ввод
+    
 
     grid.addEventListener('input', e => {
         if (
@@ -685,7 +668,7 @@ function renderAssortBody(data, offline) {
 
         if (!tile) return;
 
-        // Оставляем в поле только цифры
+        // оставляем в поле только цифры
         e.target.value =
             e.target.value
                 .replace(/\D/g, '')
@@ -700,9 +683,7 @@ function renderAssortBody(data, offline) {
     });
 
 
-    // ========================================================
-    // ВОЗВРАТ ЗНАЧЕНИЯ ПРИ УХОДЕ ИЗ ПОЛЯ
-    // ========================================================
+    // возва\рат значения при уходе из поля
 
     grid.addEventListener('focusout', e => {
         if (
@@ -727,9 +708,7 @@ function renderAssortBody(data, offline) {
 }
 
 
-// ============================================================
-// SKELETON
-// ============================================================
+// скелетон
 
 function assortSkeleton() {
     return `
@@ -758,9 +737,7 @@ function assortSkeleton() {
 }
 
 
-// ============================================================
-// ОТКРЫТИЕ МОДАЛКИ
-// ============================================================
+// открытие модалки
 
 async function openAssortModal(pointId) {
     const point = globalData.find(
@@ -830,9 +807,7 @@ async function openAssortModal(pointId) {
 }
 
 
-// ============================================================
-// ЗАКРЫТИЕ МОДАЛКИ
-// ============================================================
+// закрытие модалки
 
 function closeAssortModal() {
     if (orderSending) {
