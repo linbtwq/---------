@@ -349,6 +349,8 @@ body.dark-theme .filter-chip.active { background: var(--primary); border-color: 
 .btn-secondary:hover:not(:disabled) { background-color: #64748b; }
 .btn-success { background-color: var(--success); }
 .btn-success:hover:not(:disabled) { background-color: var(--success-hover); }
+.btn-accent { background-color: var(--accent); }
+.btn-accent:hover:not(:disabled) { background-color: var(--accent-hover); }
 
 .btn-loading {
     position: relative;
@@ -368,20 +370,30 @@ body.dark-theme .filter-chip.active { background: var(--primary); border-color: 
 }
 @keyframes btnSpin { to { transform: rotate(360deg); } }
 
+/* сетка кнопок: первая на всю ширину, остальные по две */
 .card-actions {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
     margin-top: 16px;
     padding-top: 16px;
     border-top: 1px dashed var(--border);
-    flex-wrap: wrap;
 }
 .card-actions .action-btn {
-    flex: 1;
-    min-width: 110px;
-    padding: 10px 4px;
+    min-width: 0;
+    width: 100%;
+    padding: 10px 12px;
     font-size: 0.85rem;
+    font-weight: 600;
     text-align: center;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+.card-actions .action-btn:first-child {
+    grid-column: 1 / -1;   /* главное действие — на всю ширину */
 }
 
 /*
@@ -552,6 +564,38 @@ body.dark-theme .filter-chip.active { background: var(--primary); border-color: 
 body.dark-theme .connection-status.has-queue .status-text { color: #fbbf24; }
 @keyframes refreshSpin { to { transform: rotate(360deg); } }
 
+.lang-toggle {
+    position: absolute;
+    top: 20px; right: 70px;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: 20px;
+    height: 40px;
+    padding: 0 14px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: var(--shadow-sm);
+    z-index: 100;
+    color: var(--text);
+    transition: background 0.2s ease, transform 0.2s var(--ease-bounce);
+    gap: 4px;
+}
+.lang-toggle:active { transform: scale(0.94); }
+
+@media (max-width: 480px) {
+    .lang-toggle {
+        top: max(8px, env(safe-area-inset-top));
+        right: 62px;
+        height: 44px;
+        padding: 0 12px;
+        font-size: 0.78rem;
+    }
+}
+
 .theme-toggle {
     position: absolute;
     top: 20px; right: 20px;
@@ -686,7 +730,6 @@ body.dark-theme .lock-note.order {
     color: #93c5fd;
 }
 
-/* маленькая кнопка внутри плашек блокировки */
 .btn-small {
     padding: 4px 12px !important;
     min-height: 30px !important;
@@ -954,31 +997,26 @@ body.dark-theme .app-version { color: #64748b; }
 
     /* Кнопки — крупнее, с иконками */
     .card-actions {
-        display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 8px;
         margin-top: 14px;
         padding-top: 14px;
     }
     .card-actions .action-btn {
-        min-width: 0;
-        min-height: 50px;
-        padding: 8px 10px;
-        font-size: 0.82rem;
-        font-weight: 600;
+        min-height: 52px;
+        padding: 8px 8px;
+        font-size: 0.78rem;
         border-radius: 10px;
         touch-action: manipulation;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
     }
-    .card-actions .action-btn:first-child { grid-column: 1 / -1; }
 
-    /* Иконки перед текстом кнопок */
-    .card-actions .action-btn[data-action="open"]::before   { content: '📊'; font-size: 1rem; }
-    .card-actions .action-btn[data-action="pay"]::before    { content: '💰'; font-size: 1rem; }
-    .card-actions .action-btn[data-action="assort"]::before { content: '📦'; font-size: 1rem; }
+    .card-actions .action-btn[data-action="open"]::before     { content: '📊'; font-size: 1.1rem; }
+    .card-actions .action-btn[data-action="assort"]::before   { content: '📦'; font-size: 1.1rem; }
+    .card-actions .action-btn[data-action="pay"]::before      { content: '💰'; font-size: 1.1rem; }
+    .card-actions .action-btn[data-action="stock"]::before    { content: '📋'; font-size: 1.1rem; }
+    .card-actions .action-btn[data-action="shipment"]::before { content: '🚚'; font-size: 1.1rem; }
+    .card-actions .action-btn[data-action="recount"]::before  { content: '🔄'; font-size: 1.1rem; }
+    .card-actions .action-btn[data-action="note"]::before     { content: '📝'; font-size: 1.1rem; }
 
     /* Плашки блокировки */
     .lock-note { font-size: 0.85rem; padding: 10px 12px; margin-top: 12px; }
@@ -1123,6 +1161,13 @@ body.dark-theme .app-version { color: #64748b; }
     .qty .meter-input { font-size: 15px !important; }
     .assort-field-static,
     .assort-row-total { font-size: 0.85rem; }
+
+    .card-actions .action-btn {
+        min-height: 48px;
+        font-size: 0.72rem;
+        gap: 4px;
+    }
+    .card-actions .action-btn::before { font-size: 1rem !important; }
 }
 
 /*
@@ -1459,4 +1504,54 @@ body.dark-theme .qty .meter-input.error:focus {
     background: #94a3b8;
     opacity: 0.65;
     box-shadow: none;
+}
+/* ОСТАТКИ ПО ТОЧКЕ */
+
+.stock-list {
+    margin-top: 14px;
+    border-top: 1px dashed var(--border);
+}
+
+.stock-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px dashed var(--border);
+}
+.stock-row:last-child { border-bottom: none; }
+
+.stock-name {
+    flex: 1;
+    min-width: 0;
+    color: var(--text-heading);
+    font-size: 0.95rem;
+    font-weight: 600;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+}
+
+.stock-qty {
+    flex: 0 0 auto;
+    font-size: 1.05rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    padding: 4px 12px;
+    border-radius: 999px;
+    min-width: 60px;
+    text-align: center;
+}
+.stock-qty.ok   { color: var(--success); background: var(--success-soft, #d1fae5); }
+.stock-qty.low  { color: #b45309;       background: var(--warning-soft); }
+.stock-qty.zero { color: var(--danger); background: var(--danger-soft); }
+
+body.dark-theme .stock-qty.ok   { background: #064e3b; color: #6ee7b7; }
+body.dark-theme .stock-qty.low  { background: #422006; color: #fcd34d; }
+body.dark-theme .stock-qty.zero { background: #450a0a; color: #fca5a5; }
+
+@media (max-width: 480px) {
+    .stock-row { padding: 10px 0; }
+    .stock-name { font-size: 0.9rem; }
+    .stock-qty { font-size: 1rem; padding: 3px 10px; min-width: 54px; }
 }

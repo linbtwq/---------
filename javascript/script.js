@@ -1,10 +1,8 @@
 // блок 1
 // базовые настройки и состояние
-// здесь задаются основные параметры работы интерфейса
-// и хранится глобальный контекст данных и режимов поиска
 
 if (typeof APP_CONFIG === 'undefined') {
-    throw new Error('Не найден config.js — подключите его в index.html перед script.js');
+    throw new Error('Не знайдено config.js — підключіть його в index.html перед script.js');
 }
 const apiBase = String(APP_CONFIG.apiBase).replace(/\/+$/, '');
 const LOCK_MODE = APP_CONFIG.lockMode;
@@ -13,15 +11,15 @@ const AUTO_LOGOUT_AFTER_SUBMIT = APP_CONFIG.autoLogoutAfterSubmit;
 const UNLIMITED_USER_IDS = APP_CONFIG.unlimitedUserIds;
 
 const SEARCH_MODES = {
-    all:     { placeholder: 'Номер точки, номер машины или название...',
-               hint: 'Номер точки или код машины, либо название. 0 покажет все точки',
-               empty: 'Ничего не найдено' },
-    point:   { placeholder: 'Введите номер точки...',
-               hint: 'Номер точки без нулей. 0 покажет все точки',
-               empty: 'Торговая точка с таким кодом не найдена' },
-    machine: { placeholder: 'Введите номер или название аппарата...',
-               hint: 'Код машины или название оборудования. 0 покажет аппараты',
-               empty: 'Оборудование с таким номером не найдено' }
+    all:     { placeholder: 'Номер точки, номер машини або назва...',
+               hint: 'Номер точки або код машини, або назва. 0 покаже всі точки',
+               empty: 'Нічого не знайдено' },
+    point:   { placeholder: 'Введіть номер точки...',
+               hint: 'Номер точки без нулів. 0 покаже всі точки',
+               empty: 'Торгова точка з таким кодом не знайдена' },
+    machine: { placeholder: 'Введіть номер або назву апарату...',
+               hint: 'Код машини або назва обладнання. 0 покаже апарати',
+               empty: 'Обладнання з таким номером не знайдено' }
 };
 
 const fmt = (num) => new Intl.NumberFormat('ru-RU').format(num);
@@ -60,8 +58,6 @@ let autoRefreshTimer = null;
 
 // блок 2
 // утилиты
-// здесь собраны служебные функции для форматирования
-// и безопасной работы с данными и сетью
 
 const escapeHtml = (v) => String(v ?? '').replace(/[&<>"']/g, c => (
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
@@ -111,8 +107,6 @@ function hideTopProgress() {
 
 // блок 3
 // хранилище
-// здесь сохраняются кэш данных и очередь офлайн отправки
-// чтобы приложение могло работать без связи с 1с
 
 const localDB = {
     name: 'CoffeeMetersDB',
@@ -160,8 +154,6 @@ function saveLocks(locks) {
 
 // блок 4
 // инициализация
-// после загрузки страницы подключаются события
-// запускается тема интерфейса и стартовые проверки
 
 document.addEventListener('DOMContentLoaded', () => {
     initServiceWorker();
@@ -175,7 +167,7 @@ function startApp() {
     loadData();
     if (navigator.onLine) syncOfflineMeters();
     startAutoRefresh();
-        if (window.innerWidth > 480) {
+    if (window.innerWidth > 480) {
         setTimeout(() => {
             const searchInput = document.getElementById('searchInput');
             if (searchInput) searchInput.focus();
@@ -185,7 +177,7 @@ function startApp() {
 
 function initServiceWorker() {
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js').catch(err => console.error('ошибка sw:', err));
+        navigator.serviceWorker.register('./sw.js').catch(err => console.error('помилка sw:', err));
     }
 }
 
@@ -245,6 +237,10 @@ function initEventListeners() {
             else if (action === 'more') appendCards(results, false);
             else if (action === 'pay') openPaymentModal(id);
             else if (action === 'assort') openAssortModal(id);
+            else if (action === 'stock') openStockModal(id);
+            else if (action === 'shipment') openStub('Відвантаження на точку', id);
+            else if (action === 'recount') openStub('Перерахунок', id);
+            else if (action === 'note') openStub('Примітка', id);
         });
         results.addEventListener('scroll', updateBackToTop, { passive: true });
     }
@@ -276,7 +272,7 @@ function initEventListeners() {
 
     document.addEventListener('keydown', onKeyDown);
 
-        if (statusTimer) clearInterval(statusTimer);
+    if (statusTimer) clearInterval(statusTimer);
     statusTimer = setInterval(() => {
         if (document.visibilityState === 'visible' && currentUser) renderStatus();
     }, 15000);
@@ -338,8 +334,6 @@ function showVersion() {
 
 // блок 5
 // загрузка справочника
-// здесь берутся данные из 1с и сохраняются в кэш
-// при отсутствии сети показываются последние сохранённые значения
 
 function refreshResults() {
     const input = document.getElementById('searchInput');
@@ -359,7 +353,7 @@ async function loadData({ silent = false } = {}) {
                 serverDataFresh = false;
                 refreshResults();
             }
-        } catch (e) { console.warn('Ошибка чтения кэша', e); }
+        } catch (e) { console.warn('Помилка читання кешу', e); }
     }
 
     try {
@@ -369,16 +363,16 @@ async function loadData({ silent = false } = {}) {
             cache: 'no-store'
         }, APP_CONFIG.loadTimeoutMs);
 
-        if (!response.ok) throw new Error('Ошибка сети');
+        if (!response.ok) throw new Error('Помилка мережі');
         const data = await response.json();
-        if (!Array.isArray(data)) throw new Error('Неверный ответ 1С');
+        if (!Array.isArray(data)) throw new Error('Невірна відповідь 1С');
 
         globalData = data;
         serverDataFresh = true;
         lastLoadedAt = Date.now();
 
         try { await localDB.save('cachedNomenclature', data); }
-        catch (e) { console.error('Ошибка записи в БД', e); }
+        catch (e) { console.error('Помилка запису в БД', e); }
 
         setConnectionStatus(true);
         if (readQueue().length && !isSyncing) syncOfflineMeters({ quiet: true });
@@ -395,8 +389,8 @@ async function loadData({ silent = false } = {}) {
         }
 
         if (!silent) {
-            showToast(globalData.length ? 'Оффлайн. Показаны сохраненные данные'
-                                        : 'Нет связи и нет сохраненных данных', !globalData.length);
+            showToast(globalData.length ? 'Офлайн. Показані збережені дані'
+                                        : 'Немає зв\'язку і немає збережених даних', !globalData.length);
         }
     } finally {
         isLoading = false;
@@ -409,8 +403,6 @@ async function loadData({ silent = false } = {}) {
 
 // блок 6
 // поиск
-// здесь идет отбор данных по точке, машине или общему запросу
-// и формируется список совпадений для страницы
 
 function handleSearch(e) {
     const query = e.target.value?.trim().toLowerCase() || "";
@@ -428,7 +420,7 @@ function handleSearch(e) {
 
     if (query === "") {
         if (isDeleting && (now - lastDeleteTime < 400) && isAtTop) {
-            resultsContainer.innerHTML = `<div class="empty-state">Введите код точки для поиска</div>`;
+            resultsContainer.innerHTML = `<div class="empty-state">Введіть код точки для пошуку</div>`;
             resultsContainer.classList.add('active');
         } else {
             searchContainer.classList.remove('top');
@@ -532,8 +524,6 @@ function filterPoints(query, mode = searchMode) {
 
 // блок 7
 // рендер карточек
-// после фильтрации создаются карточки точек
-// с данными по адресу, долгу и состоянию блокировки
 
 function cardHtml(item, idx) {
     const meterLock = getMeterLock(item);
@@ -554,19 +544,19 @@ function cardHtml(item, idx) {
     }
 
     const badges =
-        (meterBlocked ? `<span class="lock-badge">Показатели сняты</span>` : '') +
-        (orderBlocked ? `<span class="lock-badge order">Заказ сделан</span>` : '');
+        (meterBlocked ? `<span class="lock-badge">Показники зняті</span>` : '') +
+        (orderBlocked ? `<span class="lock-badge order">Замовлення зроблено</span>` : '');
 
     const notes = `
         ${meterLock ? `<div class="lock-note">
-            Показатели по этой точке уже внесены${lockTimeText(meterLock)}.${
-                isUnlimitedUser() ? '' : ' Для изменений позвоните в 1С.'
+            Показники по цій точці вже внесені${lockTimeText(meterLock)}.${
+                isUnlimitedUser() ? '' : ' Для змін зателефонуйте в 1С.'
             }
-            ${meterLock.pending ? '<br><b>Ожидает отправки в 1С (нет связи).</b>' : ''}
+            ${meterLock.pending ? '<br><b>Очікує відправки в 1С (немає зв\'язку).</b>' : ''}
         </div>` : ''}
         ${orderLock ? `<div class="lock-note order">
-            Заказ пополнения уже сделан${lockTimeText(orderLock)}.${
-                isUnlimitedUser() ? '' : ' Повторный заказ — через 1С.'
+            Замовлення поповнення вже зроблено${lockTimeText(orderLock)}.${
+                isUnlimitedUser() ? '' : ' Повторне замовлення — через 1С.'
             }
         </div>` : ''}
     `;
@@ -575,7 +565,7 @@ function cardHtml(item, idx) {
         <div class="point-card${(meterLock || orderLock) ? ' locked' : ''}" style="--i:${idx}" data-rendered="1">
             <div class="point-header">
                 <div>
-                    <span class="point-title">${escapeHtml(item.point_name) || 'Без названия'}</span>
+                    <span class="point-title">${escapeHtml(item.point_name) || 'Без назви'}</span>
                     <span class="point-code" style="margin-left: 10px;">Код: ${id}</span>
                 </div>
                 ${badges}
@@ -583,20 +573,29 @@ function cardHtml(item, idx) {
 
             <div class="point-grid">
                 <div class="info-item"><label>Контрагент</label><span>${escapeHtml(item.counterparty) || '—'}</span></div>
-                <div class="info-item"><label>Адрес</label><span>${escapeHtml(item.address) || '—'}</span></div>
-                <div class="info-item machine-info"><label>Оборудование</label><span class="${item.coffee_machine ? 'machine-tag' : ''}">${machineDisplay}</span></div>
+                <div class="info-item"><label>Адреса</label><span>${escapeHtml(item.address) || '—'}</span></div>
+                <div class="info-item machine-info"><label>Обладнання</label><span class="${item.coffee_machine ? 'machine-tag' : ''}">${machineDisplay}</span></div>
 
                 ${debtHtml}
             </div>
 
             <div class="card-actions">
-                <button class="action-btn" data-action="open" data-id="${id}" ${meterBlocked ? 'disabled' : ''}>Показатели</button>
-                <button class="action-btn btn-success" data-action="pay" data-id="${id}" ${debt > 0 ? '' : 'disabled'}>Оплата боргу</button>
-                <button class="action-btn btn-secondary" data-action="assort" data-id="${id}" ${orderBlocked ? 'disabled' : ''}>Ассортимент</button>
+                <button class="action-btn" data-action="open" data-id="${id}" ${meterBlocked ? 'disabled' : ''}>Показники</button>
+                <button class="action-btn" data-action="assort" data-id="${id}" ${orderBlocked ? 'disabled' : ''}>Поповнення</button>
+                <button class="action-btn btn-success" data-action="pay" data-id="${id}" ${debt > 0 ? '' : 'disabled'}>ПКО (готівка)</button>
+                <button class="action-btn" data-action="stock" data-id="${id}">Залишки</button>
+                <button class="action-btn" data-action="shipment" data-id="${id}">Відвантаження</button>
+                <button class="action-btn" data-action="recount" data-id="${id}">Перерахунок</button>
+                <button class="action-btn" data-action="note" data-id="${id}">Примітка</button>
             </div>
 
             ${notes}
         </div>`;
+}
+
+function openStub(title, pointId) {
+    showToast(`${title}: в розробці`, false);
+    console.log('[stub]', title, 'pointId =', pointId);
 }
 
 function appendCards(container, replace) {
@@ -607,7 +606,7 @@ function appendCards(container, replace) {
 
     const html = slice.map((item, i) => cardHtml(item, i)).join('')
         + (remaining > 0
-            ? `<div class="show-more-wrap"><button class="action-btn btn-secondary" data-action="more">Показать еще (${remaining})</button></div>`
+            ? `<div class="show-more-wrap"><button class="action-btn btn-secondary" data-action="more">Показати ще (${remaining})</button></div>`
             : '');
 
     if (replace) container.innerHTML = html;
@@ -642,21 +641,17 @@ function renderResults(data) {
 }
 
 // блок 8
-// модалки ввода показателей
-// здесь пользователь вводит новые значения по ассортименту
-// и проверяется корректность данных перед отправкой
+// модалка показателей
 
 function openMeterModal(pointId) {
     const item = globalData.find(i => String(i.id) === String(pointId));
     if (!item) return;
     if (isMeterBlocked(item)) {
-        showToast('По этой точке показатели уже сняты. Изменения — через 1С.', true);
+        showToast('По цій точці показники вже зняті. Зміни — через 1С.', true);
         return;
     }
     rememberFocus();
     currentPointId = item.id;
-    // request_id создаём здесь — один раз на сессию ввода, чтобы повтор
-    // из-за таймаута не создавал второй документ
     currentMeterRequestId = newRequestId();
 
     const modalSub = document.getElementById('modalSub');
@@ -674,28 +669,28 @@ function openMeterModal(pointId) {
             return `
                 <div class="meter-input-group assort-row" data-drink-row>
                     <div class="assort-row-head">
-                        <strong class="assort-tile-name drink-name">${escapeHtml(drink.name) || 'Без названия'}</strong>
-                        <span class="assort-row-price">Цена: <strong>${fmt(price)} ₴</strong></span>
+                        <strong class="assort-tile-name drink-name">${escapeHtml(drink.name) || 'Без назви'}</strong>
+                        <span class="assort-row-price">Ціна: <strong>${fmt(price)} ₴</strong></span>
                     </div>
                     <div class="assort-row-fields">
                         <div>
-                            <label>Было</label>
+                            <label>Було</label>
                             <div class="assort-field-static">${fmt(lastMeter)}</div>
                         </div>
                         <div>
-                            <label>Новый</label>
+                            <label>Новий</label>
                             <div class="qty">
-                                <button type="button" class="qty-btn" data-step="-1" aria-label="Меньше">−</button>
+                                <button type="button" class="qty-btn" data-step="-1" aria-label="Менше">−</button>
                                 <input type="text" inputmode="numeric" pattern="[0-9]*"
                                        class="meter-input qty-input"
                                        value="${lastMeter}"
                                        data-price="${price}"
                                        data-last="${lastMeter}">
-                                <button type="button" class="qty-btn" data-step="1" aria-label="Больше">+</button>
+                                <button type="button" class="qty-btn" data-step="1" aria-label="Більше">+</button>
                             </div>
                         </div>
                         <div>
-                            <label>Итого</label>
+                            <label>Разом</label>
                             <div class="row-total assort-row-total">0 ₴</div>
                         </div>
                     </div>
@@ -713,7 +708,7 @@ function openMeterModal(pointId) {
             </div>
         `;
     } else {
-        bodyHtml = `<div class="empty-state" style="padding: 20px;">Для оборудования ассортимент не заполнен в 1С.</div>`;
+        bodyHtml = `<div class="empty-state" style="padding: 20px;">Для обладнання асортимент не заповнений в 1С.</div>`;
     }
 
     document.getElementById('modalBody').innerHTML = bodyHtml;
@@ -741,7 +736,7 @@ function calculateRowTotal(input) {
     if (!errorHint) {
         errorHint = document.createElement('div');
         errorHint.className = 'error-hint';
-        errorHint.textContent = 'Меньше предыдущего!';
+        errorHint.textContent = 'Менше попереднього!';
         const wrap = input.closest('.assort-row-fields > div') || input.parentNode;
         wrap.appendChild(errorHint);
     }
@@ -790,7 +785,6 @@ function closeModal() {
 
 // блок 9
 // оплата долга
-// здесь проверяется сумма оплаты и отправляется запрос на уменьшение долга
 
 function openPaymentModal(pointId) {
     const item = globalData.find(i => String(i.id) === String(pointId));
@@ -800,7 +794,7 @@ function openPaymentModal(pointId) {
     currentPaymentRequestId = newRequestId();
     const debt = Number(item.debt) || 0;
 
-    document.getElementById('paymentPointName').textContent = item.point_name || 'Без названия';
+    document.getElementById('paymentPointName').textContent = item.point_name || 'Без назви';
     const debtEl = document.getElementById('paymentCurrentDebt');
     debtEl.textContent = `${fmt(debt)} ₴`;
     debtEl.className = debt > 0 ? 'debt-value red' : 'debt-value green';
@@ -832,17 +826,17 @@ async function submitPayment() {
     const currentDebt = Number(item.debt) || 0;
 
     if (!amount || amount <= 0) {
-        errorBox.textContent = 'Сумма должна быть больше нуля';
+        errorBox.textContent = 'Сума має бути більше нуля';
         errorBox.style.display = 'block';
         return;
     }
     if (amount > currentDebt) {
-        errorBox.textContent = `Сумма не может превышать текущий борг (${fmt(currentDebt)} ₴)`;
+        errorBox.textContent = `Сума не може перевищувати поточний борг (${fmt(currentDebt)} ₴)`;
         errorBox.style.display = 'block';
         return;
     }
     if (!navigator.onLine) {
-        errorBox.textContent = 'Нет сети! Оплату можно провести только онлайн.';
+        errorBox.textContent = 'Немає мережі! Оплату можна провести тільки онлайн.';
         errorBox.style.display = 'block';
         return;
     }
@@ -850,7 +844,7 @@ async function submitPayment() {
     const btn = document.querySelector('#paymentOverlay .btn-success');
     const cancelBtn = document.querySelector('#paymentOverlay .btn-secondary');
     cancelBtn.disabled = true;
-    setBtnLoading(btn, 'Отправка...');
+    setBtnLoading(btn, 'Відправка...');
     errorBox.style.display = 'none';
 
     const payload = {
@@ -864,23 +858,23 @@ async function submitPayment() {
         const response = await postPayment(payload);
         if (!response.ok) {
             const errText = await response.text();
-            throw new Error(errText.slice(0, 150) || 'Ошибка сервера 1С');
+            throw new Error(errText.slice(0, 150) || 'Помилка сервера 1С');
         }
 
         item.debt = Math.max(0, currentDebt - amount);
         try { await localDB.save('cachedNomenclature', globalData); } catch (e) {}
 
         showSuccessAnimation();
-        showToast(`Оплата ${fmt(amount)} ₴ успешно проведена!`);
+        showToast(`Оплата ${fmt(amount)} ₴ успішно проведена!`);
         closePaymentModal();
         refreshResults();
         loadData({ silent: true });
 
     } catch (error) {
         if (error.message.includes('Failed to fetch') || error.message.includes('timeout')) {
-            errorBox.textContent = '1С не отвечает. Проверьте интернет и попробуйте снова.';
+            errorBox.textContent = '1С не відповідає. Перевірте інтернет і спробуйте знову.';
         } else {
-            errorBox.textContent = `Не удалось провести: ${error.message}`;
+            errorBox.textContent = `Не вдалося провести: ${error.message}`;
         }
         errorBox.style.display = 'block';
     } finally {
@@ -898,14 +892,14 @@ async function applyDebtDelta(pointId, delta) {
     if (!item) return;
     item.debt = (Number(item.debt) || 0) + delta;
     try { await localDB.save('cachedNomenclature', globalData); }
-    catch (e) { console.warn('не сохранили кэш долга', e); }
+    catch (e) { console.warn('не зберегли кеш боргу', e); }
 }
 
 async function submitMeters() {
     const pointId = currentPointId;
     const currentItem = globalData.find(i => String(i.id) === String(pointId));
     if (currentItem && isMeterBlocked(currentItem)) {
-        showToast('По этой точке показатели уже сняты. Изменения — через 1С.', true);
+        showToast('По цій точці показники вже зняті. Зміни — через 1С.', true);
         finishSubmission();
         return;
     }
@@ -937,14 +931,14 @@ async function submitMeters() {
 
     const confirmBtn = document.querySelector('#confirmOverlay .btn-success');
     if (!confirmBtn) return;
-    setBtnLoading(confirmBtn, 'Отправка...');
+    setBtnLoading(confirmBtn, 'Відправка...');
 
     if (!navigator.onLine) {
         saveOffline(payload);
         await applyDebtDelta(pointId, sessionTotal);
         finishSubmission();
         refreshResults();
-        resetBtn(confirmBtn, 'Отправить в 1С');
+        resetBtn(confirmBtn, 'Відправити в 1С');
         return;
     }
 
@@ -953,31 +947,30 @@ async function submitMeters() {
 
         if (response.status === 409) {
             lockPoint(pointId);
-            showToast('По этой точке показатели уже внесены. Для изменений звоните в 1С.', true);
+            showToast('По цій точці показники вже внесені. Для змін телефонуйте в 1С.', true);
             finishSubmission();
             refreshResults();
             return;
         }
-        if (!response.ok) throw new Error(await response.text() || 'Ошибка сервера 1С');
+        if (!response.ok) throw new Error(await response.text() || 'Помилка сервера 1С');
 
         let body = null;
         try { body = await response.json(); } catch (e) {}
 
-        // если 1С явно сказала, что не ок — не блокируем, показываем ошибку
         if (body && body.ok === false) {
-            showToast(body.error || body.debt_error || '1С отклонила документ.', true);
+            showToast(body.error || body.debt_error || '1С відхилила документ.', true);
             return;
         }
 
         lockPoint(pointId);
 
         if (body && body.debt_error) {
-            console.error('[1С] долг не начислен:', body.debt_error);
-            showToast('Документ создан, но ДОЛГ НЕ НАЧИСЛЕН: ' + String(body.debt_error).slice(0, 150), true);
+            console.error('[1С] борг не нарахований:', body.debt_error);
+            showToast('Документ створено, але БОРГ НЕ НАРАХОВАНО: ' + String(body.debt_error).slice(0, 150), true);
         } else {
             await applyDebtDelta(pointId, sessionTotal);
             showSuccessAnimation();
-            showToast('Документ в 1С успешно создан!');
+            showToast('Документ в 1С успішно створено!');
         }
 
         finishSubmission();
@@ -990,14 +983,13 @@ async function submitMeters() {
             finishSubmission();
             refreshResults();
         } else {
-            showToast(`Ошибка: ${error.message}`, true);
+            showToast(`Помилка: ${error.message}`, true);
         }
     } finally {
-        resetBtn(confirmBtn, 'Отправить в 1С');
+        resetBtn(confirmBtn, 'Відправити в 1С');
     }
 }
 
-// единая точка возврата на экран поиска
 function resetToSearchScreen() {
     const searchInput = document.getElementById('searchInput');
     const searchContainer = document.getElementById('searchContainer');
@@ -1047,7 +1039,7 @@ function saveOffline(payload) {
     offlineQueue.push(payload);
     localStorage.setItem('offlineMetersQueue', JSON.stringify(offlineQueue));
     lockPoint(payload.point_id, true);
-    showToast('Нет связи с 1С. Сохранено на устройстве, отправим автоматически.', true);
+    showToast('Немає зв\'язку з 1С. Збережено на пристрої, відправимо автоматично.', true);
     retryAttempt = 0;
     setConnectionStatus(false);
     scheduleSyncRetry();
@@ -1066,7 +1058,7 @@ async function syncOfflineMeters(opts) {
     const manual = !!(opts && opts.manual === true);
     const quiet = !!(opts && opts.quiet === true);
     if (isSyncing) {
-        if (manual) showToast('Отправка уже идет...');
+        if (manual) showToast('Відправка вже йде...');
         return;
     }
     isSyncing = true;
@@ -1087,7 +1079,7 @@ async function runSync({ manual, quiet }) {
         localStorage.setItem('offlineMetersQueue', JSON.stringify(queue));
     }
 
-    if (!quiet) showToast(`Отправка записей из очереди: ${queue.length}...`);
+    if (!quiet) showToast(`Відправка записів із черги: ${queue.length}...`);
     const done = new Set();
     let netFail = false;
     let serverError = '';
@@ -1101,14 +1093,13 @@ async function runSync({ manual, quiet }) {
                 setConnectionStatus(true);
             } else {
                 const body = (await response.text().catch(() => '')).slice(0, 120);
-                serverError = `1С ответила ${response.status}${body ? ': ' + body : ''}`;
-                console.warn('[sync] ошибка сервера:', response.status, body, payload);
+                serverError = `1С відповіла ${response.status}${body ? ': ' + body : ''}`;
+                console.warn('[sync] помилка сервера:', response.status, body, payload);
             }
         } catch (err) {
             netFail = true;
-            console.warn('[sync] нет связи с 1С:', err.message);
+            console.warn('[sync] немає зв\'язку з 1С:', err.message);
             setConnectionStatus(false);
-            // не прерываем очередь — продолжаем, следующая запись может пройти
             continue;
         }
     }
@@ -1117,16 +1108,16 @@ async function runSync({ manual, quiet }) {
     if (rest.length) localStorage.setItem('offlineMetersQueue', JSON.stringify(rest));
     else localStorage.removeItem('offlineMetersQueue');
 
-    lastSyncError = rest.length ? (netFail ? 'нет связи с 1С' : serverError) : '';
+    lastSyncError = rest.length ? (netFail ? 'немає зв\'язку з 1С' : serverError) : '';
     if (done.size) retryAttempt = 0;
 
     if (done.size && rest.length === 0) {
-        showToast('Все записи из очереди отправлены в 1С.');
+        showToast('Усі записи з черги відправлені в 1С.');
         loadData({ silent: true });
     } else if (done.size) {
-        showToast(`Отправлено: ${done.size}, осталось: ${rest.length}`, true);
+        showToast(`Відправлено: ${done.size}, залишилось: ${rest.length}`, true);
     } else if (rest.length && !quiet) {
-        showToast(`Не отправлено: ${rest.length}. ${lastSyncError || 'нет связи с 1С'}`, true);
+        showToast(`Не відправлено: ${rest.length}. ${lastSyncError || 'немає зв\'язку з 1С'}`, true);
     }
 }
 
@@ -1169,17 +1160,15 @@ function renderStatus() {
     let timeText = '';
     if (lastLoadedAt) {
         const sec = Math.floor((Date.now() - lastLoadedAt) / 1000);
-        timeText = sec < 5 ? 'только что'
-            : sec < 60 ? `${sec} сек назад`
-            : sec < 3600 ? `${Math.floor(sec / 60)} мин назад`
-            : `${Math.floor(sec / 3600)} ч назад`;
+        timeText = sec < 5 ? 'щойно'
+            : sec < 60 ? `${sec} сек тому`
+            : sec < 3600 ? `${Math.floor(sec / 60)} хв тому`
+            : `${Math.floor(sec / 3600)} год тому`;
     }
 
-    // время обновляем всегда — оно не входит в ключ
     const timeEl = box.querySelector('.status-time');
     if (timeEl) timeEl.textContent = timeText;
 
-    // ключ без времени — чтобы не перерисовывать классы каждые 15 сек
     const stateKey = `${connectionOnline}|${queued}|${lastSyncError}|${isLoading ? 1 : 0}`;
     if (stateKey === _lastStatusKey) return;
     _lastStatusKey = stateKey;
@@ -1189,20 +1178,18 @@ function renderStatus() {
         + (queued ? ' has-queue' : '')
         + (isLoading ? ' syncing' : '');
 
-    let text = connectionOnline === null ? 'Проверка связи...'
-        : connectionOnline ? '1С подключена' : 'Нет связи с 1С';
-    if (queued) text += ` · Не отправлено: ${queued}`;
+    let text = connectionOnline === null ? 'Перевірка зв\'язку...'
+        : connectionOnline ? '1С підключена' : 'Немає зв\'язку з 1С';
+    if (queued) text += ` · Не відправлено: ${queued}`;
 
     const textEl = box.querySelector('.status-text');
     if (textEl) textEl.textContent = text;
 
-    box.title = 'Нажмите для обновления' + (lastSyncError ? ` (${lastSyncError})` : '');
+    box.title = 'Натисніть для оновлення' + (lastSyncError ? ` (${lastSyncError})` : '');
 }
 
 // блок 13
 // блокировка точек
-// показатели блокируются сервером + локально до конца дня
-// заказы пополнения — только сервером (по факту проведения документа)
 
 function computeLockUntil() {
     const now = new Date();
@@ -1229,7 +1216,6 @@ function markSynced(pointId) {
     if (lock) { lock.pending = false; saveLocks(locks); }
 }
 
-// блокировка показателей — серверная или pending из офлайн-очереди
 function getMeterLock(item) {
     const id = String(item.id);
     const locks = getLocks();
@@ -1252,8 +1238,10 @@ function getMeterLock(item) {
     return local;
 }
 
-// блокировка заказов — только серверная (заказ офлайн невозможен)
 function getOrderLock(item) {
+    if (serverDataFresh && item.order_locked === true) {
+        return { server: true, at: item.order_locked_at || null };
+    }
     if (item.order_locked === true) {
         return { server: true, at: item.order_locked_at || null };
     }
@@ -1275,8 +1263,8 @@ function isOrderBlocked(item) {
 function lockTimeText(lock) {
     if (!lock.at) return '';
     if (typeof lock.at === 'number') {
-        const t = new Date(lock.at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-        return ` в ${t}`;
+        const t = new Date(lock.at).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
+        return ` о ${t}`;
     }
     return ` (${lock.at})`;
 }
@@ -1304,13 +1292,12 @@ function resetAppState() {
     _lastStatusKey = '';
     clearTimeout(searchTimer);
     cancelAnimationFrame(renderFrame);
-        clearTimeout(retryTimer);
+    clearTimeout(retryTimer);
     clearTimeout(toastTimer);
     if (statusTimer) {
         clearInterval(statusTimer);
         statusTimer = null;
     }
-    _lastStatusKey = '';
     stopAutoRefresh();
 
     const results = document.getElementById('resultsContainer');
@@ -1352,6 +1339,7 @@ function closeTopModal() {
     else if (m.id === 'confirmOverlay') closeConfirmModal();
     else if (m.id === 'paymentOverlay') closePaymentModal();
     else if (m.id === 'assortOverlay') closeAssortModal();
+    else if (m.id === 'stockOverlay') closeStockModal();
 }
 
 let _focusBeforeModal = null;
@@ -1442,5 +1430,129 @@ async function manualRefresh() {
         await loadData({ silent: false });
     } finally {
         if (box) setTimeout(() => box.classList.remove('syncing'), 400);
+    }
+}
+
+// ============================================================
+// МОДАЛКА ОСТАТКІВ
+// ============================================================
+
+function ensureStockModal() {
+    let el = document.getElementById('stockOverlay');
+    if (el) return el;
+
+    el = document.createElement('div');
+    el.className = 'modal-overlay';
+    el.id = 'stockOverlay';
+    el.style.zIndex = '1005';
+
+    el.innerHTML = `
+        <div class="modal-box assort-box">
+            <div class="modal-header">
+                <div class="assort-head">
+                    <h3>Залишки по апарату</h3>
+                    <div class="assort-sub" id="stockSub"></div>
+                </div>
+                <button class="modal-close" type="button" aria-label="Закрити">✕</button>
+            </div>
+            <div class="modal-body" id="stockBody"></div>
+            <div class="modal-footer">
+                <button class="action-btn btn-secondary" type="button" id="stockCloseBtn">Закрити</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(el);
+
+    el.querySelector('.modal-close').addEventListener('click', closeStockModal);
+    el.querySelector('#stockCloseBtn').addEventListener('click', closeStockModal);
+    el.addEventListener('click', (e) => { if (e.target === el) closeStockModal(); });
+
+    return el;
+}
+
+function closeStockModal() {
+    document.getElementById('stockOverlay')?.classList.remove('active');
+    if (!getTopModal()) restoreFocus();
+}
+
+async function openStockModal(pointId) {
+    const point = globalData.find(i => String(i.id) === String(pointId));
+    if (!point) return;
+
+    rememberFocus();
+
+    const overlay = ensureStockModal();
+    const sub = document.getElementById('stockSub');
+    const body = document.getElementById('stockBody');
+
+    sub.textContent = `${point.point_name || 'Точка'} · код ${point.id}`;
+    body.innerHTML = `
+        <div class="assort-loading">
+            <div class="skeleton skeleton-text" style="width:60%;"></div>
+            <div class="skeleton skeleton-text" style="width:80%;"></div>
+            <div class="skeleton skeleton-text" style="width:50%;"></div>
+        </div>
+    `;
+
+    overlay.classList.add('active');
+
+    try {
+        const res = await fetchWithTimeout(
+            `${apiBase}/stock?point=${encodeURIComponent(point.id)}&t=${Date.now()}`,
+            { method: 'GET', cache: 'no-store' },
+            APP_CONFIG.loadTimeoutMs
+        );
+
+        if (!res.ok) throw new Error('Помилка мережі');
+
+        const data = await res.json();
+        if (!Array.isArray(data)) throw new Error('Невірна відповідь 1С');
+
+        if (data.length === 1 && String(data[0].Code) === '0') {
+            body.innerHTML = `
+                <div class="empty-state" style="padding: 28px 20px;">
+                    ${escapeHtml(data[0].Name)}
+                </div>
+            `;
+            return;
+        }
+
+        if (!data.length) {
+            body.innerHTML = `<div class="empty-state" style="padding: 28px 20px;">Залишки відсутні</div>`;
+            return;
+        }
+
+        const sorted = data.slice().sort((a, b) =>
+            String(a.Name || '').localeCompare(String(b.Name || ''), 'uk')
+        );
+
+        body.innerHTML = `
+            <div class="assort-panel">
+                <div class="assort-pills" style="margin-top:0;">
+                    <span class="assort-pill">${sorted.length} поз.</span>
+                </div>
+                <div class="stock-list">
+                    ${sorted.map(it => {
+                        const qty = Number(it.quantity) || 0;
+                        const qtyClass = qty <= 0 ? 'zero' : (qty < 10 ? 'low' : 'ok');
+                        return `
+                            <div class="stock-row">
+                                <span class="stock-name">${escapeHtml(it.Name || '—')}</span>
+                                <span class="stock-qty ${qtyClass}">${fmt(qty)}</span>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+
+    } catch (err) {
+        const message = err && err.message ? err.message : String(err);
+        body.innerHTML = `
+            <div class="assort-error">
+                Не вдалося завантажити залишки: ${escapeHtml(message)}
+            </div>
+        `;
     }
 }

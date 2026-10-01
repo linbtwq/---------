@@ -46,26 +46,23 @@ async function login() {
 
     // блокируем интерфейс на время запроса к 1С
     loginBtn.disabled = true;
-    loginBtn.textContent = 'Проверка...';
+    loginBtn.textContent = 'Перевірка...';
     errorMsg.style.display = 'none';
 
     try {
         const apiBaseUrl = String(APP_CONFIG.apiBase).replace(/\/+$/, '');
 
-        // отправляем ПИН-код на маршрут /login в 1С
         const response = await fetch(`${apiBaseUrl}/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ pin: pin })
         });
 
-        if (!response.ok) throw new Error('Ошибка сервера 1С');
+        if (!response.ok) throw new Error('Помилка сервера 1С');
 
         const data = await response.json();
 
-        // 1С возвращает Code "0" для неверных пин-кодов
         if (data.Code && String(data.Code) !== "0") {
-            // успех! Сохраняем реальные данные из 1С
             currentUser = { id: String(data.Code), name: data.Name };
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
 
@@ -78,34 +75,29 @@ async function login() {
             pinInput.value = '';
             showUserInfo();
 
-            // запускаем загрузку данных приложения
             if (typeof startApp === 'function') startApp();
         } else {
-            // 1С ответила "НЕ ЗНАЙДЕНО"
-            throw new Error('Неверный ПИН-код');
+            throw new Error('Невірний ПІН-код');
         }
 
     } catch (err) {
-        errorMsg.textContent = err.message === 'Неверный ПИН-код' ? 'Неверный ПИН-код' : 'Нет связи с 1С';
+        errorMsg.textContent = err.message === 'Невірний ПІН-код' ? 'Невірний ПІН-код' : 'Немає зв\'язку з 1С';
         errorMsg.style.display = 'block';
 
         if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
         pinInput.classList.remove('shake');
-        void pinInput.offsetWidth; // перезапуск анимации
+        void pinInput.offsetWidth;
         pinInput.classList.add('shake');
         pinInput.value = '';
     } finally {
-        // возвращаем кнопку в исходное состояние
         loginBtn.disabled = false;
-        loginBtn.textContent = 'Войти';
+        loginBtn.textContent = 'Увійти';
         pinInput.focus();
     }
 }
 
 // логика выхода из системы
 function logout() {
-    // закрываем все активные модалки, чтобы следующий пользователь
-    // не увидел чужое состояние
     document.querySelectorAll('.modal-overlay.active')
         .forEach(m => m.classList.remove('active'));
 
@@ -140,7 +132,7 @@ function showUserInfo() {
         userBadge.textContent = `👤 ${currentUser.name} `;
         const btn = document.createElement('button');
         btn.className = 'logout-btn';
-        btn.textContent = 'Выйти';
+        btn.textContent = 'Вийти';
         btn.addEventListener('click', logout);
         userBadge.appendChild(btn);
     }

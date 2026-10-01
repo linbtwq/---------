@@ -1,18 +1,4 @@
-// ассортимент + заказ пополнения
-// строки оформлены как в окне "Показатели"
-//
-// подключается в index.html ПОСЛЕ script.js.
-//
-// данные:
-// GET {apiBase}/assortments?point=<код точки>
-//
-// заказ:
-// POST {apiBase}/orders
-// тело:
-// {
-//     point_id, technician_id, request_id, total,
-//     items: [{ code, name, qty, price }]
-// }
+// асортимент + замовлення поповнення
 
 let assortLoading = false;
 let orderSending = false;
@@ -47,44 +33,25 @@ function ensureAssortModal() {
         <div class="modal-box assort-box">
             <div class="modal-header">
                 <div class="assort-head">
-                    <h3>Ассортимент</h3>
+                    <h3>Асортимент</h3>
                     <div class="assort-sub" id="assortSub"></div>
                 </div>
-
-                <button
-                    class="modal-close"
-                    type="button"
-                    aria-label="Закрыть"
-                >✕</button>
+                <button class="modal-close" type="button" aria-label="Закрити">✕</button>
             </div>
 
             <div class="modal-body" id="assortBody"></div>
 
             <div class="modal-footer order-footer">
-                <div
-                    class="order-summary"
-                    id="orderSummary"
-                    style="display:none;"
-                ></div>
-
-                <button
-                    class="action-btn btn-success"
-                    type="button"
-                    id="orderSendBtn"
-                    style="display:none;"
-                    disabled
-                >Заказать</button>
+                <div class="order-summary" id="orderSummary" style="display:none;"></div>
+                <button class="action-btn btn-success" type="button" id="orderSendBtn" style="display:none;" disabled>Замовити</button>
             </div>
         </div>
     `;
 
     document.body.appendChild(el);
 
-    el.querySelector('.modal-close')
-        .addEventListener('click', closeAssortModal);
-
-    el.querySelector('#orderSendBtn')
-        .addEventListener('click', showOrderConfirm);
+    el.querySelector('.modal-close').addEventListener('click', closeAssortModal);
+    el.querySelector('#orderSendBtn').addEventListener('click', showOrderConfirm);
 
     return el;
 }
@@ -95,33 +62,22 @@ async function loadPointAssortment(pointId) {
     try {
         const res = await fetchWithTimeout(
             `${apiBase}/assortments?point=${encodeURIComponent(pointId)}&t=${Date.now()}`,
-            {
-                method: 'GET',
-                cache: 'no-store'
-            },
+            { method: 'GET', cache: 'no-store' },
             APP_CONFIG.loadTimeoutMs
         );
 
-        if (!res.ok) {
-            throw new Error('Ошибка сети');
-        }
+        if (!res.ok) throw new Error('Помилка мережі');
 
         const data = await res.json();
+        if (!Array.isArray(data)) throw new Error('Невірна відповідь 1С');
 
-        if (!Array.isArray(data)) {
-            throw new Error('Неверный ответ 1С');
-        }
-
-        try {
-            await localDB.save(key, data);
-        } catch (e) {}
+        try { await localDB.save(key, data); } catch (e) {}
 
         return { data, offline: false };
 
     } catch (err) {
         try {
             const cached = await localDB.load(key);
-
             if (Array.isArray(cached)) {
                 return { data: cached, offline: true };
             }
@@ -164,8 +120,8 @@ function updateOrderBar() {
     btn.style.display = '';
 
     summary.innerHTML = count
-        ? `В заказе: <b>${count} поз.</b> на <b>${fmt(sum)} ₴</b>`
-        : 'Выберите количество нужных позиций';
+        ? `У замовленні: <b>${count} поз.</b> на <b>${fmt(sum)} ₴</b>`
+        : 'Виберіть кількість потрібних позицій';
 
     btn.disabled = orderSending || count === 0;
 }
@@ -197,14 +153,12 @@ function setQty(code, value, tile, syncInput) {
     updateOrderBar();
 }
 
-// локально помечаем точку "заказ сделан" + обновляем долг,
-// чтобы карточка сразу перерисовалась без ожидания loadData
 function point_orders_locked(pointId, orderSum) {
     const item = globalData.find(i => String(i.id) === String(pointId));
     if (!item) return;
 
     item.order_locked = true;
-    item.order_locked_at = new Date().toLocaleString('ru-RU');
+    item.order_locked_at = new Date().toLocaleString('uk-UA');
 
     if (orderSum) {
         item.debt = (Number(item.debt) || 0) + Number(orderSum);
@@ -225,7 +179,7 @@ async function submitOrder() {
     if (!count) return;
 
     if (!navigator.onLine) {
-        showToast('Нет сети! Заказ можно отправить только онлайн.', true);
+        showToast('Немає мережі! Замовлення можна відправити лише онлайн.', true);
         return;
     }
 
@@ -246,7 +200,6 @@ async function submitOrder() {
         items
     };
 
-    // запоминаем, куда возвращать, до resetOrder()
     const pointId = order.pointId;
 
     const btn = document.getElementById('orderSendBtn');
@@ -254,7 +207,7 @@ async function submitOrder() {
 
     orderSending = true;
     if (closeBtn) closeBtn.disabled = true;
-    setBtnLoading(btn, 'Отправка...');
+    setBtnLoading(btn, 'Відправка...');
 
     let success = false;
     let finalSum = sum;
@@ -276,7 +229,7 @@ async function submitOrder() {
 
         if (!res.ok) {
             const errText = await res.text();
-            throw new Error(errText.slice(0, 150) || 'Ошибка сервера 1С');
+            throw new Error(errText.slice(0, 150) || 'Помилка сервера 1С');
         }
 
         let body = null;
@@ -290,23 +243,23 @@ async function submitOrder() {
     } catch (err) {
         const message = err && err.message ? err.message : String(err);
         const msg = (message.includes('Failed to fetch') || message.toLowerCase().includes('timeout'))
-            ? '1С не отвечает. Заказ не отправлен, попробуйте ещё раз.'
-            : `Не удалось отправить заказ: ${message}`;
+            ? '1С не відповідає. Замовлення не відправлено, спробуйте ще раз.'
+            : `Не вдалося відправити замовлення: ${message}`;
         showToast(msg, true);
 
     } finally {
         orderSending = false;
         if (closeBtn) closeBtn.disabled = false;
-        resetBtn(btn, 'Заказать');
+        resetBtn(btn, 'Замовити');
 
         if (success) {
             showSuccessAnimation();
 
             if (debtError) {
-                console.error('[1С] долг по заказу не начислен:', debtError);
-                showToast('Заказ создан, но ДОЛГ НЕ НАЧИСЛЕН: ' + debtError.slice(0, 150), true);
+                console.error('[1С] борг по замовленню не нарахований:', debtError);
+                showToast('Замовлення створено, але БОРГ НЕ НАРАХОВАНО: ' + debtError.slice(0, 150), true);
             } else {
-                showToast(`Заказ отправлен: ${count} поз. на ${fmt(finalSum)} ₴`);
+                showToast(`Замовлення відправлено: ${count} поз. на ${fmt(finalSum)} ₴`);
             }
 
             point_orders_locked(pointId, finalSum);
@@ -346,7 +299,7 @@ function renderAssortBody(data, offline) {
     if (!data.length) {
         body.innerHTML = `
             <div class="empty-state" style="padding:28px 20px;">
-                Ассортимент пустой
+                Асортимент порожній
             </div>
         `;
         updateOrderBar();
@@ -383,7 +336,7 @@ function renderAssortBody(data, offline) {
                                 type="search"
                                 class="assort-search"
                                 id="assortSearch"
-                                placeholder="Поиск напитка"
+                                placeholder="Пошук напою"
                                 autocomplete="off"
                             >
                         </div>
@@ -396,8 +349,8 @@ function renderAssortBody(data, offline) {
             offline
                 ? `
                     <div class="assort-offline">
-                        Оффлайн. Показаны сохранённые данные.
-                        Заказ можно отправить только онлайн.
+                        Офлайн. Показані збережені дані.
+                        Замовлення можна відправити лише онлайн.
                     </div>
                 `
                 : ''
@@ -427,27 +380,27 @@ function renderAssortBody(data, offline) {
                                     ${escapeHtml(name) || '—'}
                                 </strong>
                                 <span class="assort-row-price">
-                                    Цена: <strong>${fmt(price)} ₴</strong>
+                                    Ціна: <strong>${fmt(price)} ₴</strong>
                                 </span>
                             </div>
 
                             <div class="assort-row-fields">
                                 <div>
-                                    <label>Мин. запас</label>
+                                    <label>Мін. запас</label>
                                     <div class="assort-field-static">
                                         ${minStock > 0 ? fmt(minStock) : '—'}
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label>Количество</label>
+                                    <label>Кількість</label>
                                     ${
                                         order.canOrder
                                             ? `
                                                 <div class="qty">
-                                                    <button type="button" class="qty-btn" data-step="-1" aria-label="Меньше">−</button>
-                                                    <input type="text" class="qty-input" inputmode="numeric" value="0" aria-label="Количество">
-                                                    <button type="button" class="qty-btn" data-step="1" aria-label="Больше">+</button>
+                                                    <button type="button" class="qty-btn" data-step="-1" aria-label="Менше">−</button>
+                                                    <input type="text" class="qty-input" inputmode="numeric" value="0" aria-label="Кількість">
+                                                    <button type="button" class="qty-btn" data-step="1" aria-label="Більше">+</button>
                                                 </div>
                                               `
                                             : `<div class="assort-field-static">—</div>`
@@ -455,7 +408,7 @@ function renderAssortBody(data, offline) {
                                 </div>
 
                                 <div>
-                                    <label>Сумма</label>
+                                    <label>Сума</label>
                                     <div class="assort-row-total">0 ₴</div>
                                 </div>
                             </div>
@@ -465,14 +418,14 @@ function renderAssortBody(data, offline) {
             </div>
 
             <div id="assortNoMatch" class="empty-state" style="display:none; margin-top:14px;">
-                Ничего не найдено
+                Нічого не знайдено
             </div>
         </div>
     `;
 
     // поиск
     const input = document.getElementById('assortSearch');
-        if (input) {
+    if (input) {
         input.addEventListener('input', () => {
             const q = input.value.trim().toLowerCase();
             let shown = 0;
@@ -563,9 +516,8 @@ async function openAssortModal(pointId) {
 
     if (!point || assortLoading) return;
 
-    // проверка серверной блокировки заказов
     if (typeof isOrderBlocked === 'function' && isOrderBlocked(point)) {
-        showToast('Заказ по этой точке уже сделан сегодня. Повтор — через 1С.', true);
+        showToast('Замовлення по цій точці вже зроблено сьогодні. Повтор — через 1С.', true);
         return;
     }
 
@@ -597,7 +549,7 @@ async function openAssortModal(pointId) {
 
         document.getElementById('assortBody').innerHTML = `
             <div class="assort-error">
-                Не удалось загрузить ассортимент:
+                Не вдалося завантажити асортимент:
                 ${escapeHtml(message)}
             </div>
         `;
@@ -622,7 +574,7 @@ function closeAssortModal() {
 }
 
 // ============================================================
-// МОДАЛКА ПОДТВЕРЖДЕНИЯ ЗАКАЗА
+// МОДАЛКА ПІДТВЕРДЖЕННЯ ЗАМОВЛЕННЯ
 // ============================================================
 
 function ensureOrderConfirmModal() {
@@ -637,27 +589,27 @@ function ensureOrderConfirmModal() {
     el.innerHTML = `
         <div class="modal-box confirm-box">
             <div class="modal-header">
-                <h3>Проверка заказа</h3>
-                <button class="modal-close" type="button" aria-label="Закрыть">✕</button>
+                <h3>Перевірка замовлення</h3>
+                <button class="modal-close" type="button" aria-label="Закрити">✕</button>
             </div>
             <div class="modal-body">
                 <p style="text-align: center; margin-bottom: 15px; color: #64748b; font-size: 0.95rem;">
-                    Проверьте состав заказа перед отправкой в 1С
+                    Перевірте склад замовлення перед відправкою в 1С
                 </p>
                 <div class="confirm-summary">
                     <div class="confirm-item">
-                        <span>Всего позиций:</span>
+                        <span>Всього позицій:</span>
                         <strong id="orderConfirmCount" style="color: #0f172a; font-size: 1.2rem;">0</strong>
                     </div>
                     <div class="confirm-item">
-                        <span>На сумму:</span>
+                        <span>На суму:</span>
                         <strong id="orderConfirmSum" style="color: #10b981; font-size: 1.2rem;">0 ₴</strong>
                     </div>
                 </div>
             </div>
             <div class="modal-footer" style="justify-content: space-between;">
                 <button class="action-btn btn-secondary" type="button" id="orderConfirmBack">Назад</button>
-                <button class="action-btn btn-success" type="button" id="orderConfirmSend">Отправить в 1С</button>
+                <button class="action-btn btn-success" type="button" id="orderConfirmSend">Відправити в 1С</button>
             </div>
         </div>
     `;
@@ -668,7 +620,6 @@ function ensureOrderConfirmModal() {
     el.querySelector('#orderConfirmBack').addEventListener('click', closeOrderConfirmModal);
     el.querySelector('#orderConfirmSend').addEventListener('click', submitOrder);
 
-    // клик по фону закрывает
     el.addEventListener('click', (e) => {
         if (e.target === el) closeOrderConfirmModal();
     });

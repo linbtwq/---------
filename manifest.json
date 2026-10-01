@@ -1,6 +1,6 @@
 {
-  "name": "Обслуживание аппаратов",
-  "short_name": "Показатели",
+  "name": "Обслуговування апаратів",
+  "short_name": "Показники",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#f4f6f8",
