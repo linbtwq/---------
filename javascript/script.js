@@ -1,9 +1,9 @@
-// блок 1
-// базовые настройки и состояние
+// script.js — оптимизированная версия
 
 if (typeof APP_CONFIG === 'undefined') {
     throw new Error('Не знайдено config.js — підключіть його в index.html перед script.js');
 }
+
 const apiBase = String(APP_CONFIG.apiBase).replace(/\/+$/, '');
 const LOCK_MODE = APP_CONFIG.lockMode;
 const LOCK_HOURS = APP_CONFIG.lockHours;
@@ -22,10 +22,29 @@ const SEARCH_MODES = {
                empty: 'Обладнання з таким номером не знайдено' }
 };
 
-const fmt = (num) => new Intl.NumberFormat('ru-RU').format(num);
+// ─── мемоизированный форматтер чисел ───────────────────
+const _nf = new Intl.NumberFormat('ru-RU');
+const _fmtCache = new Map();
+const fmt = (num) => {
+    const key = typeof num === 'number' ? num : String(num ?? '');
+    let v = _fmtCache.get(key);
+    if (v === undefined) {
+        v = _nf.format(num);
+        if (_fmtCache.size > 5000) _fmtCache.clear();
+        _fmtCache.set(key, v);
+    }
+    return v;
+};
+
+// ─── быстрый escapeHtml через таблицу подстановки ──────
+const _escRe = /[&<>"']/g;
+const _escMap = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+const escapeHtml = (v) => String(v ?? '').replace(_escRe, c => _escMap[c]);
+
 const stripZeros = (v) => String(v ?? '').trim().replace(/^0+/, '');
 const normalizeCode = (v) => String(v ?? '').replace(/\s+/g, '').replace(/^0+/, '');
 
+// ─── состояние ─────────────────────────────────────────
 let globalData = [];
 let lastDeleteTime = 0;
 let isAtTop = false;
@@ -56,13 +75,102 @@ let _lastStatusKey = '';
 const AUTO_REFRESH_INTERVAL = 60 * 1000;
 let autoRefreshTimer = null;
 
-// блок 2
-// утилиты
+// ─── кэш блокировок и очереди ──────────────────────────
+let _locksCache = null;
+let _locksCacheAt = 0;
 
-const escapeHtml = (v) => String(v ?? '').replace(/[&<>"']/g, c => (
-    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
-));
+function getLocks() {
+    const now = Date.now();
+    if (_locksCache && now - _locksCacheAt < 1000) return _locksCache;
+    try {
+        _locksCache = JSON.parse(localStorage.getItem('pointLocks')) || {};
+    } catch (e) {
+        _locksCache = {};
+    }
+    _locksCacheAt = now;
+    return _locksCache;
+}
+function saveLocks(locks) {
+    localStorage.setItem('pointLocks', JSON.stringify(locks));
+    _locksCache = locks;
+    _locksCacheAt = Date.now();
+}
 
+let _queueCache = null;
+let _queueCacheAt = 0;
+
+function readQueue() {
+    const now = Date.now();
+    if (_queueCache && now - _queueCacheAt < 500) return _queueCache;
+    try {
+        _queueCache = JSON.parse(localStorage.getItem('offlineMetersQueue')) || [];
+    } catch (e) {
+        _queueCache = [];
+    }
+    _queueCacheAt = now;
+    return _queueCache;
+}
+function saveQueue(q) {
+    if (q.length) localStorage.setItem('offlineMetersQueue', JSON.stringify(q));
+    else localStorage.removeItem('offlineMetersQueue');
+    _queueCache = q;
+    _queueCacheAt = Date.now();
+}
+
+// ─── снимок блокировок — считается один раз за рендер ──
+let _lockSnapshot = {};
+let _lockSnapshotKey = '';
+
+function buildLockSnapshot() {
+    const ids = globalData.map(i => i.id).join(',');
+    const key = `${ids}|${serverDataFresh ? 1 : 0}|${isUnlimitedUser() ? 1 : 0}`;
+    if (key === _lockSnapshotKey) return _lockSnapshot;
+
+    const locks = getLocks();
+    const snap = {};
+    const now = Date.now();
+
+    for (const item of globalData) {
+        const id = String(item.id);
+        const local = locks[id];
+
+        let meterLock = null;
+        if (local && !local.pending && local.until <= now) {
+            delete locks[id];
+        } else if (serverDataFresh && item.locked === true) {
+            meterLock = { server: true, at: item.locked_at || null };
+        } else if (local && (local.pending || local.until > now)) {
+            meterLock = local;
+        }
+
+        let orderLock = null;
+        if (item.order_locked === true) {
+            orderLock = { server: true, at: item.order_locked_at || null };
+        }
+
+        snap[id] = { meter: meterLock, order: orderLock };
+    }
+
+    saveLocks(locks);
+    _lockSnapshot = snap;
+    _lockSnapshotKey = key;
+    return snap;
+}
+
+function invalidateLockSnapshot() {
+    _lockSnapshotKey = '';
+}
+
+function getMeterLock(item) {
+    const snap = _lockSnapshot[String(item.id)];
+    return snap ? snap.meter : null;
+}
+function getOrderLock(item) {
+    const snap = _lockSnapshot[String(item.id)];
+    return snap ? snap.order : null;
+}
+
+// ─── сеть ──────────────────────────────────────────────
 async function fetchWithTimeout(url, options = {}, ms = APP_CONFIG.loadTimeoutMs) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), ms);
@@ -105,17 +213,17 @@ function hideTopProgress() {
     setTimeout(() => el.classList.remove('active'), 1800);
 }
 
-// блок 3
-// хранилище
-
+// ─── хранилище ─────────────────────────────────────────
 const localDB = {
     name: 'CoffeeMetersDB',
     store: 'cache',
+    _db: null,
     async getDb() {
+        if (this._db) return this._db;
         return new Promise((resolve, reject) => {
             const req = indexedDB.open(this.name, 1);
             req.onupgradeneeded = e => e.target.result.createObjectStore(this.store);
-            req.onsuccess = () => resolve(req.result);
+            req.onsuccess = () => { this._db = req.result; resolve(req.result); };
             req.onerror = () => reject(req.error);
         });
     },
@@ -139,22 +247,7 @@ const localDB = {
     }
 };
 
-const readQueue = () => {
-    try { return JSON.parse(localStorage.getItem('offlineMetersQueue')) || []; }
-    catch (e) { return []; }
-};
-
-function getLocks() {
-    try { return JSON.parse(localStorage.getItem('pointLocks')) || {}; }
-    catch (e) { return {}; }
-}
-function saveLocks(locks) {
-    localStorage.setItem('pointLocks', JSON.stringify(locks));
-}
-
-// блок 4
-// инициализация
-
+// ─── инициализация ─────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     initServiceWorker();
     initTheme();
@@ -239,7 +332,7 @@ function initEventListeners() {
             else if (action === 'assort') openAssortModal(id);
             else if (action === 'stock') openStockModal(id);
             else if (action === 'shipment') openStub('Відвантаження на точку', id);
-            else if (action === 'recount') openStub('Перерахунок', id);
+            else if (action === 'recount') openRecountModal(id);
             else if (action === 'note') openStub('Примітка', id);
         });
         results.addEventListener('scroll', updateBackToTop, { passive: true });
@@ -283,7 +376,6 @@ function initEventListeners() {
     scheduleSyncRetry();
 }
 
-// клики по + / − и ручной ввод в строках показателей
 function setupMeterButtons() {
     const container = document.getElementById('modalBody');
     if (!container) return;
@@ -291,16 +383,12 @@ function setupMeterButtons() {
     container.addEventListener('click', (e) => {
         const btn = e.target.closest('.qty-btn');
         if (!btn) return;
-
         const row = btn.closest('[data-drink-row]');
         if (!row) return;
-
         const input = row.querySelector('.meter-input');
         if (!input) return;
-
         const step = Number(btn.dataset.step) || 0;
         const current = Number(input.value) || 0;
-
         input.value = Math.max(0, current + step);
         calculateRowTotal(input);
     });
@@ -332,9 +420,7 @@ function showVersion() {
     if (el && typeof APP_VERSION !== 'undefined') el.textContent = 'v' + APP_VERSION;
 }
 
-// блок 5
-// загрузка справочника
-
+// ─── загрузка справочника ──────────────────────────────
 function refreshResults() {
     const input = document.getElementById('searchInput');
     if (input && input.value.trim() !== '') handleSearch({ target: input });
@@ -351,17 +437,22 @@ async function loadData({ silent = false } = {}) {
             if (cached && Array.isArray(cached)) {
                 globalData = cached;
                 serverDataFresh = false;
+                invalidateLockSnapshot();
                 refreshResults();
             }
         } catch (e) { console.warn('Помилка читання кешу', e); }
     }
 
     try {
-        const response = await fetchWithTimeout(`${apiBase}/nomenclature?t=${Date.now()}&v=${APP_CONFIG.apiVersion}`, {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json', 'X-User-Code': currentUser ? currentUser.id : '' },
-            cache: 'no-store'
-        }, APP_CONFIG.loadTimeoutMs);
+        const response = await fetchWithTimeout(
+            `${apiBase}/nomenclature?t=${Date.now()}&v=${APP_CONFIG.apiVersion}`,
+            {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json', 'X-User-Code': currentUser ? currentUser.id : '' },
+                cache: 'no-store'
+            },
+            APP_CONFIG.loadTimeoutMs
+        );
 
         if (!response.ok) throw new Error('Помилка мережі');
         const data = await response.json();
@@ -370,6 +461,7 @@ async function loadData({ silent = false } = {}) {
         globalData = data;
         serverDataFresh = true;
         lastLoadedAt = Date.now();
+        invalidateLockSnapshot();
 
         try { await localDB.save('cachedNomenclature', data); }
         catch (e) { console.error('Помилка запису в БД', e); }
@@ -385,6 +477,7 @@ async function loadData({ silent = false } = {}) {
             try {
                 const cached = await localDB.load('cachedNomenclature');
                 globalData = (cached && Array.isArray(cached)) ? cached : [];
+                invalidateLockSnapshot();
             } catch (e) {}
         }
 
@@ -401,9 +494,7 @@ async function loadData({ silent = false } = {}) {
     }
 }
 
-// блок 6
-// поиск
-
+// ─── поиск ─────────────────────────────────────────────
 function handleSearch(e) {
     const query = e.target.value?.trim().toLowerCase() || "";
     const searchContainer = document.getElementById('searchContainer');
@@ -464,21 +555,27 @@ function showSkeletons() {
     container.classList.add('active');
 }
 
+// ─── индекс для поиска — строится один раз ─────────────
 function ix(item) {
-    if (!item._ix) {
-        const name = [item.point_name, item.counterparty, item.address].join('\n').toLowerCase();
-        const machine = [item.coffee_machine, item.coffee_machine_code].join('\n').toLowerCase();
-        Object.defineProperty(item, '_ix', {
-            enumerable: false,
-            value: {
-                id: stripZeros(item.id),
-                mc: normalizeCode(item.coffee_machine_code),
-                mcRaw: String(item.coffee_machine_code ?? '').toLowerCase().replace(/\s+/g, ''),
-                name, machine, all: name + '\n' + machine
-            }
-        });
-    }
-    return item._ix;
+    let ix = item._ix;
+    if (ix) return ix;
+
+    const name = ((item.point_name || '') + '\n' + (item.counterparty || '') + '\n' + (item.address || '')).toLowerCase();
+    const machine = ((item.coffee_machine || '') + '\n' + (item.coffee_machine_code || '')).toLowerCase();
+    const mcRaw = String(item.coffee_machine_code ?? '').toLowerCase().replace(/\s+/g, '');
+
+    ix = {
+        id: stripZeros(item.id),
+        mc: normalizeCode(item.coffee_machine_code),
+        mcRaw,
+        name,
+        machine,
+        all: name + '\n' + machine,
+        numId: Number(item.id) || 0
+    };
+
+    Object.defineProperty(item, '_ix', { enumerable: false, value: ix });
+    return ix;
 }
 
 function filterPoints(query, mode = searchMode) {
@@ -490,25 +587,29 @@ function filterPoints(query, mode = searchMode) {
         const list = mode === 'machine'
             ? globalData.filter(i => i.coffee_machine_code || i.coffee_machine)
             : globalData;
-        return [...list].sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0));
+        return list.slice().sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0));
     }
 
-    let results = globalData.filter(i => {
-        const data = ix(i);
+    const results = [];
+    for (let i = 0; i < globalData.length; i++) {
+        const item = globalData[i];
+        const data = ix(item);
 
         const matchId = isDigits && (data.id === num);
         const matchMachineCode = isDigits && (data.mc === num);
         const matchMachineRaw = data.mcRaw.includes(q);
 
+        let hit;
         if (mode === 'machine') {
-            return data.machine.includes(q) || matchMachineCode || matchMachineRaw;
-        }
-        if (mode === 'point') {
-            return data.name.includes(q) || matchId;
+            hit = data.machine.includes(q) || matchMachineCode || matchMachineRaw;
+        } else if (mode === 'point') {
+            hit = data.name.includes(q) || matchId;
+        } else {
+            hit = data.all.includes(q) || matchId || matchMachineCode || matchMachineRaw;
         }
 
-        return data.all.includes(q) || matchId || matchMachineCode || matchMachineRaw;
-    });
+        if (hit) results.push(item);
+    }
 
     if (isDigits) {
         results.sort((a, b) => {
@@ -522,14 +623,14 @@ function filterPoints(query, mode = searchMode) {
     return results;
 }
 
-// блок 7
-// рендер карточек
-
+// ─── карточка точки ────────────────────────────────────
 function cardHtml(item, idx) {
-    const meterLock = getMeterLock(item);
-    const orderLock = getOrderLock(item);
-    const meterBlocked = meterLock && !isUnlimitedUser();
-    const orderBlocked = orderLock && !isUnlimitedUser();
+    const lockSnap = _lockSnapshot[String(item.id)] || { meter: null, order: null };
+    const meterLock = lockSnap.meter;
+    const orderLock = lockSnap.order;
+    const unlimited = isUnlimitedUser();
+    const meterBlocked = meterLock && !unlimited;
+    const orderBlocked = orderLock && !unlimited;
     const id = escapeHtml(item.id);
 
     const debt = Number(item.debt) || 0;
@@ -550,13 +651,13 @@ function cardHtml(item, idx) {
     const notes = `
         ${meterLock ? `<div class="lock-note">
             Показники по цій точці вже внесені${lockTimeText(meterLock)}.${
-                isUnlimitedUser() ? '' : ' Для змін зателефонуйте в 1С.'
+                unlimited ? '' : ' Для змін зателефонуйте в 1С.'
             }
             ${meterLock.pending ? '<br><b>Очікує відправки в 1С (немає зв\'язку).</b>' : ''}
         </div>` : ''}
         ${orderLock ? `<div class="lock-note order">
             Замовлення поповнення вже зроблено${lockTimeText(orderLock)}.${
-                isUnlimitedUser() ? '' : ' Повторне замовлення — через 1С.'
+                unlimited ? '' : ' Повторне замовлення — через 1С.'
             }
         </div>` : ''}
     `;
@@ -600,14 +701,17 @@ function openStub(title, pointId) {
 
 function appendCards(container, replace) {
     const start = renderedCount;
-    const slice = lastResults.slice(start, start + PAGE_SIZE);
-    renderedCount = start + slice.length;
-    const remaining = lastResults.length - renderedCount;
+    const end = Math.min(start + PAGE_SIZE, lastResults.length);
+    const remaining = lastResults.length - end;
 
-    const html = slice.map((item, i) => cardHtml(item, i)).join('')
-        + (remaining > 0
-            ? `<div class="show-more-wrap"><button class="action-btn btn-secondary" data-action="more">Показати ще (${remaining})</button></div>`
-            : '');
+    let html = '';
+    for (let i = start; i < end; i++) {
+        html += cardHtml(lastResults[i], i - start);
+    }
+    if (remaining > 0) {
+        html += `<div class="show-more-wrap"><button class="action-btn btn-secondary" data-action="more">Показати ще (${remaining})</button></div>`;
+    }
+    renderedCount = end;
 
     if (replace) container.innerHTML = html;
     else {
@@ -621,9 +725,14 @@ function renderResults(data) {
     const container = document.getElementById('resultsContainer');
     if (!container) return;
 
-    const key = data.map(i =>
-        `${i.id}:${getMeterLock(i) ? 1 : 0}:${getOrderLock(i) ? 1 : 0}`
-    ).join('|') + (isUnlimitedUser() ? '|u' : '') + '|' + searchMode;
+    buildLockSnapshot();
+
+    let key = '';
+    for (let i = 0; i < data.length; i++) {
+        const snap = _lockSnapshot[String(data[i].id)] || {};
+        key += data[i].id + ':' + (snap.meter ? 1 : 0) + ':' + (snap.order ? 1 : 0) + '|';
+    }
+    key += (isUnlimitedUser() ? 'u' : '') + '|' + searchMode;
 
     const first = container.firstElementChild;
     if (container.dataset.renderKey === key && first && first.hasAttribute('data-rendered')) return;
@@ -640,9 +749,7 @@ function renderResults(data) {
     appendCards(container, true);
 }
 
-// блок 8
-// модалка показателей
-
+// ─── модалка показателей ───────────────────────────────
 function openMeterModal(pointId) {
     const item = globalData.find(i => String(i.id) === String(pointId));
     if (!item) return;
@@ -655,7 +762,13 @@ function openMeterModal(pointId) {
     currentMeterRequestId = newRequestId();
 
     const modalSub = document.getElementById('modalSub');
-    if (modalSub) modalSub.textContent = `${item.point_name || 'Точка'} · код ${item.id}`;
+    if (modalSub) {
+        const subParts = [item.point_name || 'Точка', `код ${item.id}`];
+        if (item.coffee_machine) {
+            subParts.push(item.coffee_machine + (item.coffee_machine_code ? ` (${item.coffee_machine_code})` : ''));
+        }
+        modalSub.textContent = subParts.join(' · ');
+    }
 
     let bodyHtml;
     if (item.assortment && item.assortment.length > 0) {
@@ -783,9 +896,7 @@ function closeModal() {
     if (!getTopModal()) restoreFocus();
 }
 
-// блок 9
-// оплата долга
-
+// ─── оплата долга ──────────────────────────────────────
 function openPaymentModal(pointId) {
     const item = globalData.find(i => String(i.id) === String(pointId));
     if (!item) return;
@@ -863,6 +974,7 @@ async function submitPayment() {
 
         item.debt = Math.max(0, currentDebt - amount);
         try { await localDB.save('cachedNomenclature', globalData); } catch (e) {}
+        invalidateLockSnapshot();
 
         showSuccessAnimation();
         showToast(`Оплата ${fmt(amount)} ₴ успішно проведена!`);
@@ -883,9 +995,7 @@ async function submitPayment() {
     }
 }
 
-// блок 10
-// отправка показателей
-
+// ─── отправка показателей ──────────────────────────────
 async function applyDebtDelta(pointId, delta) {
     if (!delta) return;
     const item = globalData.find(i => String(i.id) === String(pointId));
@@ -910,9 +1020,10 @@ async function submitMeters() {
 
     rows.forEach(row => {
         const name = row.querySelector('.drink-name').textContent.trim();
-        const price = Number(row.querySelector('.meter-input').getAttribute('data-price')) || 0;
-        const value = Number(row.querySelector('.meter-input').value) || 0;
-        const lastMeter = Number(row.querySelector('.meter-input').getAttribute('data-last')) || 0;
+        const meterInput = row.querySelector('.meter-input');
+        const price = Number(meterInput.getAttribute('data-price')) || 0;
+        const value = Number(meterInput.value) || 0;
+        const lastMeter = Number(meterInput.getAttribute('data-last')) || 0;
         const delta = value - lastMeter;
 
         if (name) {
@@ -947,6 +1058,7 @@ async function submitMeters() {
 
         if (response.status === 409) {
             lockPoint(pointId);
+            invalidateLockSnapshot();
             showToast('По цій точці показники вже внесені. Для змін телефонуйте в 1С.', true);
             finishSubmission();
             refreshResults();
@@ -963,6 +1075,7 @@ async function submitMeters() {
         }
 
         lockPoint(pointId);
+        invalidateLockSnapshot();
 
         if (body && body.debt_error) {
             console.error('[1С] борг не нарахований:', body.debt_error);
@@ -1031,14 +1144,13 @@ function resetBtn(btn, text) {
     btn.classList.remove('btn-loading');
 }
 
-// блок 11
-// офлайн очередь
-
+// ─── офлайн очередь ────────────────────────────────────
 function saveOffline(payload) {
-    const offlineQueue = readQueue();
-    offlineQueue.push(payload);
-    localStorage.setItem('offlineMetersQueue', JSON.stringify(offlineQueue));
+    const queue = readQueue().slice();
+    queue.push(payload);
+    saveQueue(queue);
     lockPoint(payload.point_id, true);
+    invalidateLockSnapshot();
     showToast('Немає зв\'язку з 1С. Збережено на пристрої, відправимо автоматично.', true);
     retryAttempt = 0;
     setConnectionStatus(false);
@@ -1074,10 +1186,14 @@ async function runSync({ manual, quiet }) {
     const queue = readQueue();
     if (queue.length === 0) return;
 
-    if (queue.some(p => !p.request_id)) {
-        queue.forEach(p => { if (!p.request_id) p.request_id = newRequestId(); });
-        localStorage.setItem('offlineMetersQueue', JSON.stringify(queue));
+    let queueChanged = false;
+    for (const p of queue) {
+        if (!p.request_id) {
+            p.request_id = newRequestId();
+            queueChanged = true;
+        }
     }
+    if (queueChanged) saveQueue(queue);
 
     if (!quiet) showToast(`Відправка записів із черги: ${queue.length}...`);
     const done = new Set();
@@ -1105,8 +1221,8 @@ async function runSync({ manual, quiet }) {
     }
 
     const rest = readQueue().filter(p => !done.has(p.request_id));
-    if (rest.length) localStorage.setItem('offlineMetersQueue', JSON.stringify(rest));
-    else localStorage.removeItem('offlineMetersQueue');
+    saveQueue(rest);
+    invalidateLockSnapshot();
 
     lastSyncError = rest.length ? (netFail ? 'немає зв\'язку з 1С' : serverError) : '';
     if (done.size) retryAttempt = 0;
@@ -1121,9 +1237,7 @@ async function runSync({ manual, quiet }) {
     }
 }
 
-// блок 12
-// уведомления и статус
-
+// ─── уведомления и статус ──────────────────────────────
 function showSuccessAnimation() {
     const el = document.createElement('div');
     el.className = 'success-burst';
@@ -1188,9 +1302,7 @@ function renderStatus() {
     box.title = 'Натисніть для оновлення' + (lastSyncError ? ` (${lastSyncError})` : '');
 }
 
-// блок 13
-// блокировка точек
-
+// ─── блокировки ────────────────────────────────────────
 function computeLockUntil() {
     const now = new Date();
     if (LOCK_MODE === 'hours') return now.getTime() + LOCK_HOURS * 3600 * 1000;
@@ -1208,44 +1320,13 @@ function lockPoint(pointId, pending = false) {
         user: currentUser ? currentUser.name : ''
     };
     saveLocks(locks);
+    invalidateLockSnapshot();
 }
 
 function markSynced(pointId) {
     const locks = getLocks();
     const lock = locks[String(pointId)];
-    if (lock) { lock.pending = false; saveLocks(locks); }
-}
-
-function getMeterLock(item) {
-    const id = String(item.id);
-    const locks = getLocks();
-    let local = locks[id] || null;
-
-    if (local && !local.pending && local.until <= Date.now()) {
-        delete locks[id];
-        saveLocks(locks);
-        local = null;
-    }
-
-    if (serverDataFresh && typeof item.locked === 'boolean') {
-        if (item.locked) return { server: true, at: item.locked_at || null };
-        if (local && !local.pending) {
-            delete locks[id];
-            saveLocks(locks);
-            local = null;
-        }
-    }
-    return local;
-}
-
-function getOrderLock(item) {
-    if (serverDataFresh && item.order_locked === true) {
-        return { server: true, at: item.order_locked_at || null };
-    }
-    if (item.order_locked === true) {
-        return { server: true, at: item.order_locked_at || null };
-    }
-    return null;
+    if (lock) { lock.pending = false; saveLocks(locks); invalidateLockSnapshot(); }
 }
 
 function isUnlimitedUser() {
@@ -1269,9 +1350,7 @@ function lockTimeText(lock) {
     return ` (${lock.at})`;
 }
 
-// блок 14
-// сброс при выходе
-
+// ─── сброс ─────────────────────────────────────────────
 function resetAppState() {
     globalData = [];
     lastResults = [];
@@ -1290,6 +1369,9 @@ function resetAppState() {
     currentPaymentRequestId = null;
     isAtTop = false;
     _lastStatusKey = '';
+    _locksCache = null;
+    _queueCache = null;
+    invalidateLockSnapshot();
     clearTimeout(searchTimer);
     cancelAnimationFrame(renderFrame);
     clearTimeout(retryTimer);
@@ -1317,9 +1399,7 @@ function resetAppState() {
     renderStatus();
 }
 
-// блок 15
-// esc и фокус модалок
-
+// ─── фокус модалок ─────────────────────────────────────
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 function getTopModal() {
@@ -1340,6 +1420,7 @@ function closeTopModal() {
     else if (m.id === 'paymentOverlay') closePaymentModal();
     else if (m.id === 'assortOverlay') closeAssortModal();
     else if (m.id === 'stockOverlay') closeStockModal();
+    else if (m.id === 'recountOverlay') closeRecountModal();
 }
 
 let _focusBeforeModal = null;
@@ -1393,9 +1474,7 @@ function autofocusModal(modal) {
     if (focusables.length) focusables[0].focus();
 }
 
-// блок 16
-// автообновление и ручное обновление
-
+// ─── автообновление ────────────────────────────────────
 function startAutoRefresh() {
     stopAutoRefresh();
     autoRefreshTimer = setInterval(autoRefreshTick, AUTO_REFRESH_INTERVAL);
@@ -1433,10 +1512,7 @@ async function manualRefresh() {
     }
 }
 
-// ============================================================
-// МОДАЛКА ОСТАТКІВ
-// ============================================================
-
+// ─── модалка остатков ──────────────────────────────────
 function ensureStockModal() {
     let el = document.getElementById('stockOverlay');
     if (el) return el;

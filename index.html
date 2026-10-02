@@ -2,19 +2,38 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#2563eb">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#007aff">
     <title>1с база</title>
     <script>
-    (function () {
-        try {
-            var cores = navigator.hardwareConcurrency || 4;
-            var mem = navigator.deviceMemory || 4;
-            var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-            if (reduce || cores <= 4 || mem <= 2) document.documentElement.classList.add('low-end');
-        } catch (e) {}
-    })();
-    </script>
+(function () {
+    try {
+        var cores = navigator.hardwareConcurrency || 4;
+        var mem = navigator.deviceMemory || 4;
+        var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        var touch = window.matchMedia('(pointer: coarse)').matches;
+        var fine = window.matchMedia('(pointer: fine)').matches;
+        var w = window.innerWidth;
+        var c = document.documentElement.classList;
+
+        if (reduce || cores <= 2 || mem <= 2) c.add('low-end');
+        else if (cores <= 4) c.add('mid-end');
+
+        var high = !reduce && cores > 4 && mem > 4;
+        if (high) c.add('is-high');
+
+        if (touch) c.add('is-touch');
+
+        if (fine && !touch && w >= 900) c.add('is-desktop');
+        else if (w >= 900) c.add('is-wide');
+
+        if (w >= 1400) c.add('is-2xl');
+
+        var dpr = window.devicePixelRatio || 1;
+        if (dpr >= 1.5) c.add('is-retina');
+    } catch (e) {}
+})();
+</script>
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
 </head>
@@ -77,15 +96,15 @@
                 <button class="modal-close" onclick="closeConfirmModal()">✕</button>
             </div>
             <div class="modal-body">
-                <p style="text-align: center; margin-bottom: 15px; color: #64748b; font-size: 0.95rem;">Перевірте підсумкові цифри перед відправкою в 1С</p>
+                <p style="text-align: center; margin-bottom: 15px; color: var(--text-muted); font-size: 0.95rem;">Перевірте підсумкові цифри перед відправкою в 1С</p>
                 <div class="confirm-summary">
                     <div class="confirm-item">
                         <span>Всього продано:</span>
-                        <strong id="confirmTotalCups" style="color: #0f172a; font-size: 1.2rem;">0 шт</strong>
+                        <strong id="confirmTotalCups" style="color: var(--text-heading); font-size: 1.2rem;">0 шт</strong>
                     </div>
                     <div class="confirm-item">
                         <span>На суму:</span>
-                        <strong id="confirmTotalMoney" style="color: #10b981; font-size: 1.2rem;">0 ₴</strong>
+                        <strong id="confirmTotalMoney" style="color: var(--success); font-size: 1.2rem;">0 ₴</strong>
                     </div>
                 </div>
             </div>
@@ -111,7 +130,7 @@
                     </div>
                 </div>
                 <div class="meter-input-group" style="margin-top:16px;">
-                    <label style="font-size:0.85rem; color:#64748b; display:block; margin-bottom:6px;">Сума оплати, ₴</label>
+                    <label style="font-size:0.85rem; color: var(--text-muted); display:block; margin-bottom:6px;">Сума оплати, ₴</label>
                     <input type="number" inputmode="decimal" id="paymentAmount" min="0" step="0.01" placeholder="0">
                 </div>
                 <div id="paymentError" class="auth-error" style="display:none; margin-top:10px; margin-bottom:0;"></div>
@@ -143,5 +162,8 @@
     <script src="javascript/auth.js"></script>
     <script src="javascript/script.js"></script>
     <script src="javascript/assortments.js"></script>
+    <script src="javascript/recount.js"></script>
+    <script src="javascript/optimize.js"></script>
+</body>
 </body>
 </html>

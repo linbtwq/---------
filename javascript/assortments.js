@@ -531,8 +531,12 @@ async function openAssortModal(pointId) {
 
     updateOrderBar();
 
-    document.getElementById('assortSub').textContent =
-        `${point.point_name || 'Точка'} · код ${point.id}`;
+     // шапка: точка · код · машина
+    const subParts = [point.point_name || 'Точка', `код ${point.id}`];
+    if (point.coffee_machine) {
+        subParts.push(point.coffee_machine + (point.coffee_machine_code ? ` (${point.coffee_machine_code})` : ''));
+    }
+    document.getElementById('assortSub').textContent = subParts.join(' · ');
 
     document.getElementById('assortBody').innerHTML = assortSkeleton();
 

@@ -1,0 +1,318 @@
+/* toast, статус, тема, юзер, авторизация, успех, версия */
+
+/* ============================================================
+   toast
+   ============================================================ */
+
+.toast {
+    position: fixed;
+    top: -80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--success);
+    color: #fff;
+    padding: 12px 22px;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    box-shadow: 0 10px 30px rgba(52, 199, 89, 0.35);
+    z-index: 9999;
+    pointer-events: none;
+    max-width: calc(100vw - 40px);
+    transition: top 0.4s var(--ease-bounce);
+}
+
+.toast.error {
+    background: var(--danger);
+    box-shadow: 0 10px 30px rgba(255, 59, 48, 0.35);
+}
+
+.toast.show {
+    top: 24px;
+}
+
+/* ============================================================
+   статус соединения
+   ============================================================ */
+
+.connection-status {
+    position: fixed;
+    bottom: 20px; left: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 9px 14px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text);
+    box-shadow: var(--shadow-card);
+    z-index: 900;
+    cursor: pointer;
+    transition: border-color 0.2s ease, transform 0.1s ease;
+}
+
+.connection-status:active {
+    transform: scale(0.97);
+}
+
+.status-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    flex-shrink: 0;
+    transition: background-color 0.2s ease;
+}
+
+.connection-status.online  .status-dot {
+    background: var(--success);
+    animation: pulseGreen 2s infinite;
+}
+
+.connection-status.offline .status-dot {
+    background: var(--danger);
+    animation: pulseRed 1.6s infinite;
+}
+
+.status-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    line-height: 1.15;
+    min-width: 0;
+}
+
+.status-time {
+    font-size: 0.65rem;
+    font-weight: 500;
+    opacity: 0.65;
+}
+
+.refresh-icon {
+    margin-left: 4px;
+    font-size: 1rem;
+    opacity: 0.6;
+    flex-shrink: 0;
+    transition: transform 0.3s ease;
+}
+
+.connection-status.has-queue { border-color: #f59e0b; }
+.connection-status.has-queue .status-text { color: #b45309; }
+.connection-status.syncing .refresh-icon { animation: spin 0.9s linear infinite; }
+.connection-status.syncing { border-color: var(--primary); }
+
+body.dark-theme .connection-status.has-queue .status-text { color: #fbbf24; }
+
+/* ============================================================
+   тема и юзер
+   ============================================================ */
+
+.theme-toggle {
+    position: absolute;
+    top: 20px; right: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-size: 1.15rem;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: var(--shadow-card);
+    z-index: 100;
+    transition: transform 0.3s var(--ease-bounce);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .theme-toggle:hover {
+        transform: rotate(15deg) scale(1.06);
+    }
+}
+
+.theme-toggle:active {
+    transform: rotate(-15deg) scale(0.9);
+}
+
+.user-badge {
+    position: absolute;
+    top: 20px; left: 20px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 100;
+}
+
+.logout-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+
+.logout-btn:hover { color: var(--text-heading); }
+.logout-btn:active { transform: scale(0.95); }
+
+/* ============================================================
+   авторизация
+   ============================================================ */
+
+.auth-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+    transition: opacity 0.25s ease;
+}
+
+.auth-overlay.fade-out {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.auth-box {
+    background: var(--surface);
+    padding: 30px;
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-modal);
+    width: 90%;
+    max-width: 320px;
+    text-align: center;
+    border: 1px solid var(--border);
+    animation: popIn 0.4s var(--ease) backwards;
+}
+
+.auth-box h2 {
+    margin-bottom: 8px;
+    color: var(--text-heading);
+    font-size: 1.4rem;
+}
+
+.auth-box p {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+}
+
+.pin-input {
+    width: 100%;
+    padding: 15px;
+    font-size: 1.5rem;
+    text-align: center;
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    margin-bottom: 15px;
+    letter-spacing: 10px;
+    outline: none;
+    background: var(--surface-2);
+    color: var(--text-heading);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.pin-input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+.pin-input.shake {
+    animation: shake 0.4s ease;
+    border-color: var(--danger);
+}
+
+.auth-error {
+    color: var(--danger);
+    font-size: 0.85rem;
+    margin-bottom: 15px;
+    font-weight: 500;
+}
+
+/* ============================================================
+   успех
+   ============================================================ */
+
+.success-burst {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 3000;
+    pointer-events: none;
+    background: rgba(0, 0, 0, 0.25);
+    animation: fadeIn 0.18s ease;
+    transition: opacity 0.35s ease;
+}
+
+.success-burst.out { opacity: 0; }
+
+.success-burst svg {
+    width: 110px;
+    height: 110px;
+    padding: 28px;
+    border-radius: 50%;
+    background: var(--success);
+    box-shadow: 0 20px 50px rgba(52, 199, 89, 0.5);
+    animation: burstIn 0.5s var(--ease-bounce) backwards;
+}
+
+.success-burst path {
+    stroke: #fff;
+    stroke-width: 5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 40;
+    stroke-dashoffset: 40;
+    animation: drawCheck 0.4s ease-out 0.2s forwards;
+}
+
+/* ============================================================
+   версия
+   ============================================================ */
+
+.app-version {
+    position: fixed;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    opacity: 0.5;
+    pointer-events: none;
+    z-index: 10;
+    font-family: ui-monospace, monospace;
+}
+
+/* ============================================================
+   скроллбар на десктопе
+   ============================================================ */
+
+@media (hover: hover) and (pointer: fine) {
+    .results-container {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(142, 142, 147, 0.4) transparent;
+    }
+    .results-container::-webkit-scrollbar {
+        display: block;
+        width: 6px;
+    }
+    .results-container::-webkit-scrollbar-track { background: transparent; }
+    .results-container::-webkit-scrollbar-thumb {
+        background: rgba(142, 142, 147, 0.4);
+        border-radius: 3px;
+    }
+}

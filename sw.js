@@ -16,7 +16,9 @@ const ASSETS = [
     './javascript/config.js',
     './javascript/auth.js',
     './javascript/script.js',
-    './javascript/assortments.js'
+    './javascript/assortments.js',
+    './javascript/recount.js',
+    './javascript/optimize.js'
 ];
 
 /*
