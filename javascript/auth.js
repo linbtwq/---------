@@ -133,11 +133,14 @@ function logout() {
 function showUserInfo() {
     const userBadge = document.getElementById('userBadge');
     if (userBadge && currentUser) {
-        userBadge.textContent = `👤 ${currentUser.name} `;
+        const name = document.createElement('span');
+        name.className = 'user-name';
+        name.textContent = `👤 ${currentUser.name}`;
         const btn = document.createElement('button');
         btn.className = 'logout-btn';
         btn.textContent = 'Вийти';
         btn.addEventListener('click', logout);
+        userBadge.replaceChildren(name);
         userBadge.appendChild(btn);
     }
 }

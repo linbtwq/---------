@@ -1,8 +1,7 @@
 /* точка входа, подключает все модули стилей */
-/* порядок важен, mobile последний */
+/* мобильные переопределения подключаются после этого файла */
 @import url('./css/modals.css');
 @import url('./css/ui.css');
-@import url('./css/mobile.css');
 
 /* ============================================================
    базовые переменные и разметка
@@ -438,6 +437,20 @@ body.dark-theme .filter-chip.active {
 .btn-accent    { background: var(--accent); }
 .action-btn[data-action="assort"] { background: var(--accent); }
 
+.card-actions .action-btn[data-action="stock"],
+.card-actions .action-btn[data-action="shipment"],
+.card-actions .action-btn[data-action="recount"],
+.card-actions .action-btn[data-action="note"] {
+    background: var(--surface-2);
+    color: var(--text-heading);
+    border: 1px solid var(--border);
+}
+
+.card-actions .action-btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
 .btn-loading {
     position: relative;
     color: transparent !important;
@@ -478,6 +491,30 @@ body.dark-theme .filter-chip.active {
 
 .card-actions .action-btn:first-child {
     grid-column: 1 / -1;
+}
+
+@media (min-width: 900px) {
+    .point-grid > .info-item:last-child {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding-top: 10px;
+        border-top: 1px solid var(--separator);
+    }
+
+    .point-grid > .info-item:last-child .debt-label {
+        margin: 0;
+    }
+
+    .card-actions {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .card-actions .action-btn:first-child {
+        grid-column: span 2;
+    }
 }
 
 /* ============================================================
