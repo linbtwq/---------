@@ -8,9 +8,6 @@ const apiBase = String(APP_CONFIG.apiBase).replace(/\/+$/, '');
 const LOCK_MODE = APP_CONFIG.lockMode;
 const LOCK_HOURS = APP_CONFIG.lockHours;
 const AUTO_LOGOUT_AFTER_SUBMIT = APP_CONFIG.autoLogoutAfterSubmit;
-const UNLIMITED_USER_IDS = Array.isArray(APP_CONFIG.unlimitedUserIds)
-    ? APP_CONFIG.unlimitedUserIds
-    : [];
 const SEARCH_MODES = {
     all:     { placeholder: 'Номер точки, номер машини або назва...',
                hint: 'Номер точки або код машини, або назва. 0 покаже всі точки',
@@ -255,10 +252,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initEventListeners();
     initSearchFilters();
     showVersion();
-
 });
-
-
 
 function startApp() {
     loadData();
@@ -328,7 +322,6 @@ function showConfirmDialog({ title, message, details, okText, cancelText, danger
         const detailsEl = document.getElementById('confirmDialogDetails');
         const okBtn     = document.getElementById('confirmDialogOk');
         const cancelBtn = document.getElementById('confirmDialogCancel');
-        const closeBtn  = document.getElementById('confirmDialogClose');
 
         titleEl.textContent = title || 'Підтвердіть дію';
         msgEl.textContent   = message || '';
@@ -350,9 +343,6 @@ function showConfirmDialog({ title, message, details, okText, cancelText, danger
             overlay.classList.remove('active');
             okBtn.removeEventListener('click', onOk);
             cancelBtn.removeEventListener('click', onCancel);
-            if (closeBtn) {
-                closeBtn.removeEventListener('click', onCancel);
-            }
             overlay.removeEventListener('click', onOverlayClick);
             document.removeEventListener('keydown', onKey);
         };
@@ -367,9 +357,6 @@ function showConfirmDialog({ title, message, details, okText, cancelText, danger
 
         okBtn.addEventListener('click', onOk);
         cancelBtn.addEventListener('click', onCancel);
-        if (closeBtn) {
-            closeBtn.addEventListener('click', onCancel);
-        }
         overlay.addEventListener('click', onOverlayClick);
         document.addEventListener('keydown', onKey);
 
@@ -387,29 +374,26 @@ function initClearCacheButton() {
             title: 'Очистити кеш?',
             message: 'Сторінка перезавантажиться. Авторизація залишиться.',
             details: [
-                     'Буде очищено збережені дані',
-                     'Офлайн-черга',
-                     'Кеш файлів'
-                                    ],
+                'Буде очищено збережені дані',
+                'Офлайн-черга',
+                'Кеш файлів'
+            ],
             okText: 'Очистити',
             cancelText: 'Скасувати',
             danger: true
-});
+        });
 
-if (!ok) return;
+        if (!ok) return;
 
         btn.disabled = true;
-        const oldIcon = btn.textContent;
         btn.textContent = '⏳';
 
         try {
-            // 1. Service Worker caches
             if ('caches' in window) {
                 const keys = await caches.keys();
                 await Promise.all(keys.map(k => caches.delete(k)));
             }
 
-            // 2. IndexedDB
             if (window.indexedDB && indexedDB.deleteDatabase) {
                 await new Promise((resolve) => {
                     const req = indexedDB.deleteDatabase('CoffeeMetersDB');
@@ -417,7 +401,6 @@ if (!ok) return;
                 });
             }
 
-            // 3. localStorage — сохраняем авторизацию и настройки
             const keepUser = localStorage.getItem('currentUser');
             const keepDark = localStorage.getItem('darkMode');
             const keepMode = localStorage.getItem('searchMode');
@@ -432,7 +415,6 @@ if (!ok) return;
             console.warn('[clear cache]', e);
         }
 
-        // 4. Перезагрузка
         setTimeout(() => location.reload(), 300);
     });
 }
@@ -745,7 +727,7 @@ function filterPoints(query, mode = searchMode) {
     return results;
 }
 
-// ─── карточка точки ────────────────────────────────────
+// карточка точки 
 function cardHtml(item, idx) {
     const lockSnap = _lockSnapshot[String(item.id)] || { meter: null, order: null };
     const meterLock = lockSnap.meter;
@@ -763,19 +745,39 @@ function cardHtml(item, idx) {
     if (item.coffee_machine_code) {
         const machineCode = `<span class="machine-code">Код <code>${escapeHtml(item.coffee_machine_code)}</code></span>`;
         machineDisplay = item.coffee_machine ? `${machineDisplay} ${machineCode}` : machineCode;
-    }   
+    }
 
-    const badges =
-        (meterBlocked ? `<span class="lock-badge">Показники зняті</span>` : '');
+    const badges = (meterBlocked ? `<span class="lock-badge">Показники зняті</span>` : '');
 
-    const notes = `
-        ${meterLock ? `<div class="lock-note">
+    // ═══════════════════════════════════════════════════════════════
+    // теперь notes собирается из трёх источников
+    //            1. показники (meterLock) как было
+    //            2. пополнение (orderLock) из order_locked
+    //            3. перерасчёт (item.recount_locked) из нового поля 1С
+    // ═══════════════════════════════════════════════════════════════
+    let notes = '';
+
+    if (meterLock) {
+        notes += `<div class="lock-note">
             Показники по цій точці вже внесені${lockTimeText(meterLock)}.${
                 unlimited ? '' : ' Для змін зателефонуйте в 1С.'
             }
             ${meterLock.pending ? '<br><b>Очікує відправки в 1С (немає зв\'язку).</b>' : ''}
-        </div>` : ''}
-    `;
+        </div>`;
+    }
+
+    if (orderLock) {
+        notes += `<div class="lock-note order">
+            Поповнення по цій точці вже внесено${lockTimeText(orderLock)}.
+        </div>`;
+    }
+
+        if (item.recount_locked === true) {
+        const at = item.recount_locked_at ? ` (${item.recount_locked_at})` : '';
+        notes += `<div class="lock-note recount">
+            Перерахунок по цій точці вже внесено${at}.
+        </div>`;
+    }
 
     return `
         <div class="point-card${(meterLock || orderLock) ? ' locked' : ''}" style="--i:${idx}" data-rendered="1">
@@ -844,10 +846,10 @@ function renderResults(data) {
 
     let key = '';
     for (let i = 0; i < data.length; i++) {
-    const snap = _lockSnapshot[String(data[i].id)] || {};
-    const d = Number(data[i].debt) || 0;
-    key += data[i].id + ':' + (snap.meter ? 1 : 0) + ':' + (snap.order ? 1 : 0) + ':' + d + '|';
-}
+        const snap = _lockSnapshot[String(data[i].id)] || {};
+        const d = Number(data[i].debt) || 0;
+        key += data[i].id + ':' + (snap.meter ? 1 : 0) + ':' + (snap.order ? 1 : 0) + ':' + d + '|';
+    }
     key += (isUnlimitedUser() ? 'u' : '') + '|' + searchMode;
 
     container.classList.toggle('single-result', data.length === 1);
@@ -1096,12 +1098,9 @@ async function submitPayment() {
         showSuccessAnimation();
         showToast(`Оплата ${fmt(amount)} ₴ успішно проведена!`);
         closePaymentModal();
-        refreshResults();
-        loadData({ silent: true });
 
-        if (typeof resetToSearchScreen === 'function') {
-            resetToSearchScreen();
-        }
+        // локально уменьшаем долг сразу + повторно тянем с сервера через паузу
+        refreshAfterSubmit(pointId, -amount);
 
     } catch (error) {
         if (error.message.includes('Failed to fetch') || error.message.includes('timeout')) {
@@ -1121,9 +1120,19 @@ async function applyDebtDelta(pointId, delta) {
     if (!delta) return;
     const item = globalData.find(i => String(i.id) === String(pointId));
     if (!item) return;
-    item.debt = (Number(item.debt) || 0) + delta;
+    item.debt = Math.max(0, (Number(item.debt) || 0) + delta);
     try { await localDB.save('cachedNomenclature', globalData); }
     catch (e) { console.warn('не зберегли кеш боргу', e); }
+}
+
+// обновление UI и данных после успешной отправки чего угодно
+// pointId  — точка, у которой меняется долг
+// debtDelta — на сколько изменить долг локально (может быть отрицательным)
+function refreshAfterSubmit(pointId, debtDelta) {
+    if (debtDelta && pointId) applyDebtDelta(pointId, debtDelta);
+    refreshResults();                                  // мгновенно показываем изменение
+    loadData({ silent: true });                        // тянем с сервера сейчас
+    setTimeout(() => loadData({ silent: true }), 1500); // и ещё раз через 1.5 сек — 1С успеет провести
 }
 
 async function submitMeters() {
@@ -1206,7 +1215,9 @@ async function submitMeters() {
         }
 
         finishSubmission();
-        loadData({ silent: true });
+
+        // долг на точке растёт на сумму продажи
+        refreshAfterSubmit(pointId, sessionTotal);
 
     } catch (error) {
         if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
@@ -1221,32 +1232,12 @@ async function submitMeters() {
     }
 }
 
-function resetToSearchScreen() {
-    const searchInput = document.getElementById('searchInput');
-    const searchContainer = document.getElementById('searchContainer');
-    const resultsContainer = document.getElementById('resultsContainer');
-
-    if (searchInput) searchInput.value = '';
-    if (searchContainer) {
-        searchContainer.classList.remove('top');
-        searchContainer.classList.add('center');
-    }
-    if (resultsContainer) {
-        resultsContainer.classList.remove('active');
-        resultsContainer.innerHTML = '';
-        delete resultsContainer.dataset.renderKey;
-    }
-    isAtTop = false;
-}
-
 function finishSubmission() {
     closeConfirmModal();
     closeModal();
     currentPointId = null;
     currentMeterRequestId = null;
-
-    resetToSearchScreen();
-
+    // не сбрасываем поиск — оставляем пользователя на том же экране
     if (AUTO_LOGOUT_AFTER_SUBMIT && typeof logout === 'function') logout();
 }
 
@@ -1750,3 +1741,6 @@ async function openStockModal(pointId) {
         `;
     }
 }
+
+
+

@@ -707,6 +707,12 @@ body.dark-theme .point-card.locked {
     color: var(--primary);
 }
 
+.lock-note.recount {
+    margin-top: 8px;
+    background: var(--success-soft);
+    color: var(--success);
+}
+
 .btn-small {
     padding: 5px 12px !important;
     min-height: 30px !important;

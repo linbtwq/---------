@@ -328,7 +328,7 @@ async function submitRecount() {
         if (closeBtn) closeBtn.disabled = false;
         resetBtn(btn, 'Відправити в 1С');
 
-        if (success) {
+                if (success) {
             showSuccessAnimation();
             showToast('Перерахунок відправлено в 1С');
 
@@ -337,10 +337,6 @@ async function submitRecount() {
 
             closeRecountModal();
             loadData({ silent: true });
-
-            if (typeof resetToSearchScreen === 'function') {
-                resetToSearchScreen();
-            }
         } else {
             updateRecountSummary();
         }

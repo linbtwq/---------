@@ -160,7 +160,7 @@ function point_orders_locked(pointId, orderSum) {
     item.order_locked = true;
     item.order_locked_at = new Date().toLocaleString('uk-UA');
 
-    // долг теперь двигает 1С через документ не трогаем локально,
+    // долг двигает 1С через документ — не трогаем локально,
     // просто подтянем с сервера
     if (typeof loadData === 'function') {
         loadData({ silent: true });
@@ -178,6 +178,9 @@ async function submitOrder() {
         return;
     }
 
+    // сохраняем ID точки ДО resetOrder — иначе потеряем
+    const pointId = order.pointId;
+
     const items = Object.keys(order.qty).map(code => ({
         code,
         name: order.items[code].name,
@@ -188,14 +191,12 @@ async function submitOrder() {
     order.requestId = order.requestId || newRequestId();
 
     const payload = {
-        point_id: order.pointId,
+        point_id: pointId,
         technician_id: currentUser ? currentUser.id : '',
         request_id: order.requestId,
         total: sum,
         items
     };
-
-    const pointId = order.pointId;
 
     const btn = document.getElementById('orderSendBtn');
     const closeBtn = document.querySelector('#assortOverlay .modal-close');
@@ -262,9 +263,7 @@ async function submitOrder() {
             document.getElementById('orderConfirmOverlay')?.classList.remove('active');
             closeAssortModal();
 
-            if (typeof resetToSearchScreen === 'function') {
-                resetToSearchScreen();
-            }
+            loadData({ silent: true });
         } else {
             updateOrderBar();
         }
@@ -519,7 +518,7 @@ async function openAssortModal(pointId) {
 
     updateOrderBar();
 
-     // шапка: точка · код · машина
+    // шапка: точка · код · машина
     const subParts = [point.point_name || 'Точка', `код ${point.id}`];
     if (point.coffee_machine) {
         subParts.push(point.coffee_machine + (point.coffee_machine_code ? ` (${point.coffee_machine_code})` : ''));
