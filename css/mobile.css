@@ -43,6 +43,14 @@
         font-size: 1.2rem;
     }
 
+        .cache-toggle {
+        top: max(8px, env(safe-area-inset-top));
+        right: 64px;
+        width: 44px;
+        height: 44px;
+        font-size: 1.15rem;
+    }
+
     .search-container.top { top: var(--mobile-search-top); }
     .search-container.top .search-hint { display: none; }
 

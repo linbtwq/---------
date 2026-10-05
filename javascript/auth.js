@@ -63,7 +63,11 @@ async function login() {
         const data = await response.json();
 
         if (data.Code && String(data.Code) !== "0") {
-            currentUser = { id: String(data.Code), name: data.Name };
+            currentUser = { 
+                            id: String(data.Code), 
+                            name: data.Name,
+                            isAdmin: data.IsAdmin === true
+                            };
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
 
             authOverlay.classList.add('fade-out');

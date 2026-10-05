@@ -160,13 +160,8 @@ function point_orders_locked(pointId, orderSum) {
     item.order_locked = true;
     item.order_locked_at = new Date().toLocaleString('uk-UA');
 
-    if (orderSum) {
-        item.debt = (Number(item.debt) || 0) + Number(orderSum);
-        try {
-            localDB.save('cachedNomenclature', globalData);
-        } catch (e) {}
-    }
-
+    // долг теперь двигает 1С через документ не трогаем локально,
+    // просто подтянем с сервера
     if (typeof loadData === 'function') {
         loadData({ silent: true });
     }
@@ -261,8 +256,6 @@ async function submitOrder() {
             } else {
                 showToast(`Замовлення відправлено: ${count} поз. на ${fmt(finalSum)} ₴`);
             }
-
-            point_orders_locked(pointId, finalSum);
 
             resetOrder();
 
@@ -515,11 +508,6 @@ async function openAssortModal(pointId) {
     const point = globalData.find(i => String(i.id) === String(pointId));
 
     if (!point || assortLoading) return;
-
-    if (typeof isOrderBlocked === 'function' && isOrderBlocked(point)) {
-        showToast('Замовлення по цій точці вже зроблено сьогодні. Повтор — через 1С.', true);
-        return;
-    }
 
     rememberFocus();
 

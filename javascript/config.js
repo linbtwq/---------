@@ -20,8 +20,7 @@ const APP_CONFIG = {
   // value hours на число часов из lockHours
   lockMode: 'endOfDay',
   lockHours: 12,
-
-  unlimitedUserIds: ['9'],
+  
   autoLogoutAfterSubmit: false,
 
   pageSize: 30,

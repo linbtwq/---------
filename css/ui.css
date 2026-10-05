@@ -316,3 +316,43 @@ body.dark-theme .connection-status.has-queue .status-text { color: #fbbf24; }
         border-radius: 3px;
     }
 }
+
+/* ============================================================
+   кнопка очистки кеша
+   ============================================================ */
+
+.cache-toggle {
+    position: absolute;
+    top: 20px;
+    right: 72px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-size: 1.05rem;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: var(--shadow-card);
+    z-index: 100;
+    transition: transform 0.3s var(--ease-bounce), opacity 0.2s ease;
+    padding: 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .cache-toggle:hover {
+        transform: rotate(-20deg) scale(1.08);
+    }
+}
+
+.cache-toggle:active {
+    transform: scale(0.9);
+}
+
+.cache-toggle:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}

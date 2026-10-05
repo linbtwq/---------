@@ -1,15 +1,5 @@
 // javascript/recount.js
 // перерасчет (інвентаризація) окрема модалка
-//
-// данные:
-//   GET  {apiBase}/recount?point=<код>
-//   POST {apiBase}/recount_post
-//
-// использует глобальные из script.js:
-//   apiBase, fetchWithTimeout, globalData, escapeHtml, fmt,
-//   rememberFocus, restoreFocus, getTopModal, APP_CONFIG,
-//   newRequestId, showToast, showSuccessAnimation, setBtnLoading,
-//   resetBtn, currentUser, loadData.
 
 let recountLoading = false;
 let recountSending = false;
@@ -347,6 +337,10 @@ async function submitRecount() {
 
             closeRecountModal();
             loadData({ silent: true });
+
+            if (typeof resetToSearchScreen === 'function') {
+                resetToSearchScreen();
+            }
         } else {
             updateRecountSummary();
         }

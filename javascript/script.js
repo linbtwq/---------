@@ -254,7 +254,10 @@ document.addEventListener('DOMContentLoaded', () => {
     initEventListeners();
     initSearchFilters();
     showVersion();
+
 });
+
+
 
 function startApp() {
     loadData();
@@ -316,6 +319,123 @@ function applySearchMode() {
     if (hint) hint.textContent = cfg.hint;
 }
 
+function showConfirmDialog({ title, message, details, okText, cancelText, danger }) {
+    return new Promise((resolve) => {
+        const overlay   = document.getElementById('confirmDialogOverlay');
+        const titleEl   = document.getElementById('confirmDialogTitle');
+        const msgEl     = document.getElementById('confirmDialogMessage');
+        const detailsEl = document.getElementById('confirmDialogDetails');
+        const okBtn     = document.getElementById('confirmDialogOk');
+        const cancelBtn = document.getElementById('confirmDialogCancel');
+        const closeBtn  = document.getElementById('confirmDialogClose');
+
+        titleEl.textContent = title || 'Підтвердіть дію';
+        msgEl.textContent   = message || '';
+        msgEl.style.display = message ? '' : 'none';
+
+        if (Array.isArray(details) && details.length) {
+            detailsEl.innerHTML = '<ul>' + details.map(d => `<li>${escapeHtml(d)}</li>`).join('') + '</ul>';
+            detailsEl.style.display = '';
+        } else {
+            detailsEl.innerHTML = '';
+            detailsEl.style.display = 'none';
+        }
+
+        okBtn.textContent     = okText || 'OK';
+        cancelBtn.textContent = cancelText || 'Скасувати';
+        okBtn.className       = 'action-btn ' + (danger ? 'btn-danger' : 'btn-success');
+
+        const cleanup = () => {
+            overlay.classList.remove('active');
+            okBtn.removeEventListener('click', onOk);
+            cancelBtn.removeEventListener('click', onCancel);
+            if (closeBtn) {
+                closeBtn.removeEventListener('click', onCancel);
+            }
+            overlay.removeEventListener('click', onOverlayClick);
+            document.removeEventListener('keydown', onKey);
+        };
+
+        const onOk = () => { cleanup(); resolve(true); };
+        const onCancel = () => { cleanup(); resolve(false); };
+        const onOverlayClick = (e) => { if (e.target === overlay) onCancel(); };
+        const onKey = (e) => {
+            if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
+            else if (e.key === 'Enter') { e.preventDefault(); onOk(); }
+        };
+
+        okBtn.addEventListener('click', onOk);
+        cancelBtn.addEventListener('click', onCancel);
+        if (closeBtn) {
+            closeBtn.addEventListener('click', onCancel);
+        }
+        overlay.addEventListener('click', onOverlayClick);
+        document.addEventListener('keydown', onKey);
+
+        overlay.classList.add('active');
+        setTimeout(() => okBtn.focus(), 80);
+    });
+}
+
+function initClearCacheButton() {
+    const btn = document.getElementById('clearCacheBtn');
+    if (!btn) return;
+
+    btn.addEventListener('click', async () => {
+        const ok = await showConfirmDialog({
+            title: 'Очистити кеш?',
+            message: 'Сторінка перезавантажиться. Авторизація залишиться.',
+            details: [
+                     'Буде очищено збережені дані',
+                     'Офлайн-черга',
+                     'Кеш файлів'
+                                    ],
+            okText: 'Очистити',
+            cancelText: 'Скасувати',
+            danger: true
+});
+
+if (!ok) return;
+
+        btn.disabled = true;
+        const oldIcon = btn.textContent;
+        btn.textContent = '⏳';
+
+        try {
+            // 1. Service Worker caches
+            if ('caches' in window) {
+                const keys = await caches.keys();
+                await Promise.all(keys.map(k => caches.delete(k)));
+            }
+
+            // 2. IndexedDB
+            if (window.indexedDB && indexedDB.deleteDatabase) {
+                await new Promise((resolve) => {
+                    const req = indexedDB.deleteDatabase('CoffeeMetersDB');
+                    req.onsuccess = req.onerror = req.onblocked = () => resolve();
+                });
+            }
+
+            // 3. localStorage — сохраняем авторизацию и настройки
+            const keepUser = localStorage.getItem('currentUser');
+            const keepDark = localStorage.getItem('darkMode');
+            const keepMode = localStorage.getItem('searchMode');
+
+            localStorage.clear();
+
+            if (keepUser) localStorage.setItem('currentUser', keepUser);
+            if (keepDark) localStorage.setItem('darkMode', keepDark);
+            if (keepMode) localStorage.setItem('searchMode', keepMode);
+
+        } catch (e) {
+            console.warn('[clear cache]', e);
+        }
+
+        // 4. Перезагрузка
+        setTimeout(() => location.reload(), 300);
+    });
+}
+
 function initEventListeners() {
     const searchInput = document.getElementById('searchInput');
     if (searchInput) searchInput.addEventListener('input', handleSearch);
@@ -374,6 +494,7 @@ function initEventListeners() {
     initBackToTop();
     renderStatus();
     scheduleSyncRetry();
+    initClearCacheButton();
 }
 
 function setupMeterButtons() {
@@ -630,7 +751,6 @@ function cardHtml(item, idx) {
     const orderLock = lockSnap.order;
     const unlimited = isUnlimitedUser();
     const meterBlocked = meterLock && !unlimited;
-    const orderBlocked = orderLock && !unlimited;
     const id = escapeHtml(item.id);
 
     const debt = Number(item.debt) || 0;
@@ -642,11 +762,10 @@ function cardHtml(item, idx) {
     if (item.coffee_machine_code) {
         const machineCode = `<span class="machine-code">Код <code>${escapeHtml(item.coffee_machine_code)}</code></span>`;
         machineDisplay = item.coffee_machine ? `${machineDisplay} ${machineCode}` : machineCode;
-    }
+    }   
 
     const badges =
-        (meterBlocked ? `<span class="lock-badge">Показники зняті</span>` : '') +
-        (orderBlocked ? `<span class="lock-badge order">Замовлення зроблено</span>` : '');
+        (meterBlocked ? `<span class="lock-badge">Показники зняті</span>` : '');
 
     const notes = `
         ${meterLock ? `<div class="lock-note">
@@ -654,11 +773,6 @@ function cardHtml(item, idx) {
                 unlimited ? '' : ' Для змін зателефонуйте в 1С.'
             }
             ${meterLock.pending ? '<br><b>Очікує відправки в 1С (немає зв\'язку).</b>' : ''}
-        </div>` : ''}
-        ${orderLock ? `<div class="lock-note order">
-            Замовлення поповнення вже зроблено${lockTimeText(orderLock)}.${
-                unlimited ? '' : ' Повторне замовлення — через 1С.'
-            }
         </div>` : ''}
     `;
 
@@ -682,7 +796,7 @@ function cardHtml(item, idx) {
 
             <div class="card-actions">
                 <button class="action-btn" data-action="open" data-id="${id}" ${meterBlocked ? 'disabled' : ''}>Показники</button>
-                <button class="action-btn" data-action="assort" data-id="${id}" ${orderBlocked ? 'disabled' : ''}>Поповнення</button>
+                <button class="action-btn" data-action="assort" data-id="${id}">Поповнення</button>
                 <button class="action-btn btn-success" data-action="pay" data-id="${id}" ${debt > 0 ? '' : 'disabled'}>ПКО (готівка)</button>
                 <button class="action-btn" data-action="stock" data-id="${id}">Залишки</button>
                 <button class="action-btn" data-action="shipment" data-id="${id}">Відвантаження</button>
@@ -729,9 +843,10 @@ function renderResults(data) {
 
     let key = '';
     for (let i = 0; i < data.length; i++) {
-        const snap = _lockSnapshot[String(data[i].id)] || {};
-        key += data[i].id + ':' + (snap.meter ? 1 : 0) + ':' + (snap.order ? 1 : 0) + '|';
-    }
+    const snap = _lockSnapshot[String(data[i].id)] || {};
+    const d = Number(data[i].debt) || 0;
+    key += data[i].id + ':' + (snap.meter ? 1 : 0) + ':' + (snap.order ? 1 : 0) + ':' + d + '|';
+}
     key += (isUnlimitedUser() ? 'u' : '') + '|' + searchMode;
 
     const first = container.firstElementChild;
@@ -972,8 +1087,6 @@ async function submitPayment() {
             throw new Error(errText.slice(0, 150) || 'Помилка сервера 1С');
         }
 
-        item.debt = Math.max(0, currentDebt - amount);
-        try { await localDB.save('cachedNomenclature', globalData); } catch (e) {}
         invalidateLockSnapshot();
 
         showSuccessAnimation();
@@ -981,6 +1094,10 @@ async function submitPayment() {
         closePaymentModal();
         refreshResults();
         loadData({ silent: true });
+
+        if (typeof resetToSearchScreen === 'function') {
+            resetToSearchScreen();
+        }
 
     } catch (error) {
         if (error.message.includes('Failed to fetch') || error.message.includes('timeout')) {
@@ -1046,7 +1163,6 @@ async function submitMeters() {
 
     if (!navigator.onLine) {
         saveOffline(payload);
-        await applyDebtDelta(pointId, sessionTotal);
         finishSubmission();
         refreshResults();
         resetBtn(confirmBtn, 'Відправити в 1С');
@@ -1081,7 +1197,6 @@ async function submitMeters() {
             console.error('[1С] борг не нарахований:', body.debt_error);
             showToast('Документ створено, але БОРГ НЕ НАРАХОВАНО: ' + String(body.debt_error).slice(0, 150), true);
         } else {
-            await applyDebtDelta(pointId, sessionTotal);
             showSuccessAnimation();
             showToast('Документ в 1С успішно створено!');
         }
@@ -1092,7 +1207,6 @@ async function submitMeters() {
     } catch (error) {
         if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
             saveOffline(payload);
-            await applyDebtDelta(pointId, sessionTotal);
             finishSubmission();
             refreshResults();
         } else {
@@ -1330,7 +1444,9 @@ function markSynced(pointId) {
 }
 
 function isUnlimitedUser() {
-    return !!currentUser && UNLIMITED_USER_IDS.includes(String(currentUser.id));
+    if (!currentUser) return false;
+    if (currentUser.isAdmin === true) return true;
+    return UNLIMITED_USER_IDS.includes(String(currentUser.id));
 }
 
 function isMeterBlocked(item) {
