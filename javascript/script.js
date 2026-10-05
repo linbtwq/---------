@@ -756,7 +756,7 @@ function cardHtml(item, idx) {
 
     const debt = Number(item.debt) || 0;
     const debtHtml = debt > 0
-        ? `<div class="info-item"><span class="debt-label">Борг</span><span class="debt-value red">${fmt(debt)} ₴</span></div>`
+        ? `<div class="info-item debt-positive"><span class="debt-label">Борг</span><span class="debt-value red">${fmt(debt)} ₴</span></div>`
         : `<div class="info-item"><span class="debt-label">Борг</span><span class="debt-value green">0 ₴</span></div>`;
 
     let machineDisplay = escapeHtml(item.coffee_machine) || '—';
@@ -850,19 +850,22 @@ function renderResults(data) {
 }
     key += (isUnlimitedUser() ? 'u' : '') + '|' + searchMode;
 
+    container.classList.toggle('single-result', data.length === 1);
+    container.scrollTop = 0;
     const first = container.firstElementChild;
     if (container.dataset.renderKey === key && first && first.hasAttribute('data-rendered')) return;
     container.dataset.renderKey = key;
-    container.scrollTop = 0;
 
     lastResults = data;
     renderedCount = 0;
 
     if (data.length === 0) {
         container.innerHTML = `<div class="empty-state" data-rendered="1">${SEARCH_MODES[searchMode].empty}</div>`;
+        container.scrollTop = 0;
         return;
     }
     appendCards(container, true);
+    container.scrollTop = 0;
 }
 
 // ─── модалка показателей ───────────────────────────────

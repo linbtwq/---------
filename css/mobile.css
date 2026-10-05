@@ -325,7 +325,7 @@
 
     .results-container {
         top: calc(var(--mobile-search-top) + var(--mobile-search-stack) + 10px);
-        bottom: 40px;
+        bottom: 84px;
     }
 }
 
