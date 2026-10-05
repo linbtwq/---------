@@ -8,8 +8,9 @@ const apiBase = String(APP_CONFIG.apiBase).replace(/\/+$/, '');
 const LOCK_MODE = APP_CONFIG.lockMode;
 const LOCK_HOURS = APP_CONFIG.lockHours;
 const AUTO_LOGOUT_AFTER_SUBMIT = APP_CONFIG.autoLogoutAfterSubmit;
-const UNLIMITED_USER_IDS = APP_CONFIG.unlimitedUserIds;
-
+const UNLIMITED_USER_IDS = Array.isArray(APP_CONFIG.unlimitedUserIds)
+    ? APP_CONFIG.unlimitedUserIds
+    : [];
 const SEARCH_MODES = {
     all:     { placeholder: 'Номер точки, номер машини або назва...',
                hint: 'Номер точки або код машини, або назва. 0 покаже всі точки',
@@ -1444,9 +1445,7 @@ function markSynced(pointId) {
 }
 
 function isUnlimitedUser() {
-    if (!currentUser) return false;
-    if (currentUser.isAdmin === true) return true;
-    return UNLIMITED_USER_IDS.includes(String(currentUser.id));
+    return !!currentUser && currentUser.isAdmin === true;
 }
 
 function isMeterBlocked(item) {
