@@ -140,15 +140,27 @@
         grid-column: 1 / -1;
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        padding-top: 8px;
+        justify-content: flex-start;
+        gap: 8px;
+        padding-top: 6px;
         border-top: 1px solid var(--separator);
     }
 
     .point-grid > .info-item:last-child label,
     .point-grid > .info-item:last-child .debt-label {
         margin: 0;
+    }
+
+    .point-grid > .info-item:last-child .debt-value {
+        line-height: 1.1;
+        margin-left: 0;
+    }
+
+    .point-grid > .info-item:last-child.debt-positive {
+        justify-content: flex-start;
+        width: fit-content;
+        max-width: 100%;
+        border-top: 1px solid var(--separator);
     }
 
     .info-item label { font-size: 0.68rem; }
@@ -173,10 +185,6 @@
         display: inline-flex;
         flex: 0 0 auto;
         line-height: 1;
-    }
-
-    .card-actions .action-btn:first-child {
-        min-height: 52px;
     }
 
     .card-actions .action-btn[data-action="open"]::before     { content: '📊'; font-size: 1.1rem; }
@@ -356,6 +364,16 @@
 /* ============================================================
    отключения на слабых устройствах
    ============================================================ */
+
+body.is-hidden *,
+body.is-hidden *::before,
+body.is-hidden *::after {
+    animation-play-state: paused !important;
+}
+
+.results-container.is-scrolling .point-card {
+    transition: none !important;
+}
 
 .low-end .modal-overlay { transition: none; }
 .low-end .modal-box { transition: none; }

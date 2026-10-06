@@ -1,4 +1,4 @@
-// script.js — оптимизированная версия
+// script.js — полированная версия
 
 if (typeof APP_CONFIG === 'undefined') {
     throw new Error('Не знайдено config.js — підключіть його в index.html перед script.js');
@@ -8,6 +8,7 @@ const apiBase = String(APP_CONFIG.apiBase).replace(/\/+$/, '');
 const LOCK_MODE = APP_CONFIG.lockMode;
 const LOCK_HOURS = APP_CONFIG.lockHours;
 const AUTO_LOGOUT_AFTER_SUBMIT = APP_CONFIG.autoLogoutAfterSubmit;
+
 const SEARCH_MODES = {
     all:     { placeholder: 'Номер точки, номер машини або назва...',
                hint: 'Номер точки або код машини, або назва. 0 покаже всі точки',
@@ -20,21 +21,22 @@ const SEARCH_MODES = {
                empty: 'Обладнання з таким номером не знайдено' }
 };
 
-// ─── мемоизированный форматтер чисел ───────────────────
+// ─── формат и escape ───────────────────────────────────
 const _nf = new Intl.NumberFormat('ru-RU');
 const _fmtCache = new Map();
 const fmt = (num) => {
-    const key = typeof num === 'number' ? num : String(num ?? '');
+    const n = Number(num);
+    if (!Number.isFinite(n)) return '0';
+    const key = String(n);
     let v = _fmtCache.get(key);
     if (v === undefined) {
-        v = _nf.format(num);
+        v = _nf.format(n);
         if (_fmtCache.size > 5000) _fmtCache.clear();
         _fmtCache.set(key, v);
     }
     return v;
 };
 
-// ─── быстрый escapeHtml через таблицу подстановки ──────
 const _escRe = /[&<>"']/g;
 const _escMap = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 const escapeHtml = (v) => String(v ?? '').replace(_escRe, c => _escMap[c]);
@@ -62,16 +64,31 @@ let retryTimer = null;
 let retryAttempt = 0;
 let lastSyncError = '';
 let connectionOnline = null;
-const PAGE_SIZE = APP_CONFIG.pageSize;
+const deviceClasses = document.documentElement.classList;
+const PAGE_SIZE = deviceClasses.contains('low-end')
+    ? Math.min(APP_CONFIG.pageSize, 12)
+    : deviceClasses.contains('mid-end')
+        ? Math.min(APP_CONFIG.pageSize, 20)
+        : APP_CONFIG.pageSize;
+let _dataRevision = 0;
+let _lockRevision = 0;
+let _sortedDataSource = null;
+let _sortedData = [];
 let lastResults = [];
 let renderedCount = 0;
 let serverDataFresh = false;
+const _meterErrors = new Set();
 let toastTimer = null;
 let statusTimer = null;
 let _lastStatusKey = '';
 
 const AUTO_REFRESH_INTERVAL = 60 * 1000;
 let autoRefreshTimer = null;
+
+// страховка от тихих падений промисов
+window.addEventListener('unhandledrejection', (e) => {
+    console.warn('[unhandled]', e.reason);
+});
 
 // ─── кэш блокировок и очереди ──────────────────────────
 let _locksCache = null;
@@ -115,18 +132,24 @@ function saveQueue(q) {
     _queueCacheAt = Date.now();
 }
 
-// ─── снимок блокировок — считается один раз за рендер ──
+// ─── снимок блокировок ─────────────────────────────────
 let _lockSnapshot = {};
 let _lockSnapshotKey = '';
+let _lockSnapshotData = null;
+let _lockSnapshotFresh = false;
+let _lockSnapshotUnlimited = false;
 
 function buildLockSnapshot() {
-    const ids = globalData.map(i => i.id).join(',');
-    const key = `${ids}|${serverDataFresh ? 1 : 0}|${isUnlimitedUser() ? 1 : 0}`;
-    if (key === _lockSnapshotKey) return _lockSnapshot;
+    const unlimited = isUnlimitedUser();
+    if (_lockSnapshotKey && _lockSnapshotData === globalData &&
+        _lockSnapshotFresh === serverDataFresh && _lockSnapshotUnlimited === unlimited) {
+        return _lockSnapshot;
+    }
 
     const locks = getLocks();
     const snap = {};
     const now = Date.now();
+    let locksChanged = false;
 
     for (const item of globalData) {
         const id = String(item.id);
@@ -135,6 +158,7 @@ function buildLockSnapshot() {
         let meterLock = null;
         if (local && !local.pending && local.until <= now) {
             delete locks[id];
+            locksChanged = true;
         } else if (serverDataFresh && item.locked === true) {
             meterLock = { server: true, at: item.locked_at || null };
         } else if (local && (local.pending || local.until > now)) {
@@ -149,14 +173,18 @@ function buildLockSnapshot() {
         snap[id] = { meter: meterLock, order: orderLock };
     }
 
-    saveLocks(locks);
+    if (locksChanged) saveLocks(locks);
     _lockSnapshot = snap;
-    _lockSnapshotKey = key;
+    _lockSnapshotData = globalData;
+    _lockSnapshotFresh = serverDataFresh;
+    _lockSnapshotUnlimited = unlimited;
+    _lockSnapshotKey = `${_dataRevision}:${_lockRevision}`;
     return snap;
 }
 
 function invalidateLockSnapshot() {
     _lockSnapshotKey = '';
+    _lockRevision++;
 }
 
 function getMeterLock(item) {
@@ -255,6 +283,8 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function startApp() {
+    clearMeterFlowState();
+    clearPaymentFlowState();
     loadData();
     if (navigator.onLine) syncOfflineMeters();
     startAutoRefresh();
@@ -314,6 +344,12 @@ function applySearchMode() {
     if (hint) hint.textContent = cfg.hint;
 }
 
+const _isFormField = (el) => {
+    if (!el) return false;
+    const tag = el.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+};
+
 function showConfirmDialog({ title, message, details, okText, cancelText, danger }) {
     return new Promise((resolve) => {
         const overlay   = document.getElementById('confirmDialogOverlay');
@@ -322,6 +358,8 @@ function showConfirmDialog({ title, message, details, okText, cancelText, danger
         const detailsEl = document.getElementById('confirmDialogDetails');
         const okBtn     = document.getElementById('confirmDialogOk');
         const cancelBtn = document.getElementById('confirmDialogCancel');
+
+        if (!overlay || !okBtn || !cancelBtn) { resolve(false); return; }
 
         titleEl.textContent = title || 'Підтвердіть дію';
         msgEl.textContent   = message || '';
@@ -352,7 +390,10 @@ function showConfirmDialog({ title, message, details, okText, cancelText, danger
         const onOverlayClick = (e) => { if (e.target === overlay) onCancel(); };
         const onKey = (e) => {
             if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
-            else if (e.key === 'Enter') { e.preventDefault(); onOk(); }
+            else if (e.key === 'Enter' && !_isFormField(document.activeElement)) {
+                e.preventDefault();
+                onOk();
+            }
         };
 
         okBtn.addEventListener('click', onOk);
@@ -373,16 +414,11 @@ function initClearCacheButton() {
         const ok = await showConfirmDialog({
             title: 'Очистити кеш?',
             message: 'Сторінка перезавантажиться. Авторизація залишиться.',
-            details: [
-                'Буде очищено збережені дані',
-                'Офлайн-черга',
-                'Кеш файлів'
-            ],
+            details: ['Буде очищено збережені дані', 'Офлайн-черга', 'Кеш файлів'],
             okText: 'Очистити',
             cancelText: 'Скасувати',
             danger: true
         });
-
         if (!ok) return;
 
         btn.disabled = true;
@@ -393,24 +429,19 @@ function initClearCacheButton() {
                 const keys = await caches.keys();
                 await Promise.all(keys.map(k => caches.delete(k)));
             }
-
             if (window.indexedDB && indexedDB.deleteDatabase) {
                 await new Promise((resolve) => {
                     const req = indexedDB.deleteDatabase('CoffeeMetersDB');
                     req.onsuccess = req.onerror = req.onblocked = () => resolve();
                 });
             }
-
             const keepUser = localStorage.getItem('currentUser');
             const keepDark = localStorage.getItem('darkMode');
             const keepMode = localStorage.getItem('searchMode');
-
             localStorage.clear();
-
             if (keepUser) localStorage.setItem('currentUser', keepUser);
             if (keepDark) localStorage.setItem('darkMode', keepDark);
             if (keepMode) localStorage.setItem('searchMode', keepMode);
-
         } catch (e) {
             console.warn('[clear cache]', e);
         }
@@ -540,6 +571,7 @@ async function loadData({ silent = false } = {}) {
             const cached = await localDB.load('cachedNomenclature');
             if (cached && Array.isArray(cached)) {
                 globalData = cached;
+                _dataRevision++;
                 serverDataFresh = false;
                 invalidateLockSnapshot();
                 refreshResults();
@@ -549,20 +581,17 @@ async function loadData({ silent = false } = {}) {
 
     try {
         const response = await fetchWithTimeout(
-            `${apiBase}/nomenclature?t=${Date.now()}&v=${APP_CONFIG.apiVersion}`,
-            {
-                method: 'GET',
-                headers: { 'Content-Type': 'application/json', 'X-User-Code': currentUser ? currentUser.id : '' },
-                cache: 'no-store'
-            },
-            APP_CONFIG.loadTimeoutMs
-        );
+        `${apiBase}/nomenclature?t=${Date.now()}&v=${APP_CONFIG.apiVersion}&u=${encodeURIComponent(currentUser ? currentUser.id : '')}`,
+        { method: 'GET', cache: 'no-store' },
+         APP_CONFIG.loadTimeoutMs
+                                    );
 
         if (!response.ok) throw new Error('Помилка мережі');
         const data = await response.json();
         if (!Array.isArray(data)) throw new Error('Невірна відповідь 1С');
 
         globalData = data;
+        _dataRevision++;
         serverDataFresh = true;
         lastLoadedAt = Date.now();
         invalidateLockSnapshot();
@@ -581,6 +610,7 @@ async function loadData({ silent = false } = {}) {
             try {
                 const cached = await localDB.load('cachedNomenclature');
                 globalData = (cached && Array.isArray(cached)) ? cached : [];
+                _dataRevision++;
                 invalidateLockSnapshot();
             } catch (e) {}
         }
@@ -659,7 +689,6 @@ function showSkeletons() {
     container.classList.add('active');
 }
 
-// ─── индекс для поиска — строится один раз ─────────────
 function ix(item) {
     let ix = item._ix;
     if (ix) return ix;
@@ -682,16 +711,26 @@ function ix(item) {
     return ix;
 }
 
+function getSortedData() {
+    if (_sortedDataSource !== globalData) {
+        _sortedDataSource = globalData;
+        _sortedData = globalData.slice().sort((a, b) =>
+            (Number(a.id) || 0) - (Number(b.id) || 0)
+        );
+    }
+    return _sortedData;
+}
+
 function filterPoints(query, mode = searchMode) {
     const q = String(query || '').trim().toLowerCase();
     const isDigits = /^\d+$/.test(q);
     const num = stripZeros(q);
 
     if (isDigits && num === '') {
-        const list = mode === 'machine'
-            ? globalData.filter(i => i.coffee_machine_code || i.coffee_machine)
-            : globalData;
-        return list.slice().sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0));
+        const sorted = getSortedData();
+        return mode === 'machine'
+            ? sorted.filter(i => i.coffee_machine_code || i.coffee_machine)
+            : sorted;
     }
 
     const results = [];
@@ -727,7 +766,7 @@ function filterPoints(query, mode = searchMode) {
     return results;
 }
 
-// карточка точки 
+// карточка точки
 function cardHtml(item, idx) {
     const lockSnap = _lockSnapshot[String(item.id)] || { meter: null, order: null };
     const meterLock = lockSnap.meter;
@@ -738,8 +777,8 @@ function cardHtml(item, idx) {
 
     const debt = Number(item.debt) || 0;
     const debtHtml = debt > 0
-        ? `<div class="info-item debt-positive"><span class="debt-label">Борг</span><span class="debt-value red">${fmt(debt)} ₴</span></div>`
-        : `<div class="info-item"><span class="debt-label">Борг</span><span class="debt-value green">0 ₴</span></div>`;
+        ? `<div class="info-item debt-positive"><span class="debt-label">Борг:</span><span class="debt-value red">${fmt(debt)} ₴</span></div>`
+        : `<div class="info-item"><span class="debt-label">Борг:</span><span class="debt-value green">0 ₴</span></div>`;
 
     let machineDisplay = escapeHtml(item.coffee_machine) || '—';
     if (item.coffee_machine_code) {
@@ -747,16 +786,10 @@ function cardHtml(item, idx) {
         machineDisplay = item.coffee_machine ? `${machineDisplay} ${machineCode}` : machineCode;
     }
 
-    const badges = (meterBlocked ? `<span class="lock-badge">Показники зняті</span>` : '');
+    const badges = [];
+    if (meterBlocked) badges.push('<span class="lock-badge">Показники зняті</span>');
 
-    // ═══════════════════════════════════════════════════════════════
-    // теперь notes собирается из трёх источников
-    //            1. показники (meterLock) как было
-    //            2. пополнение (orderLock) из order_locked
-    //            3. перерасчёт (item.recount_locked) из нового поля 1С
-    // ═══════════════════════════════════════════════════════════════
     let notes = '';
-
     if (meterLock) {
         notes += `<div class="lock-note">
             Показники по цій точці вже внесені${lockTimeText(meterLock)}.${
@@ -765,14 +798,12 @@ function cardHtml(item, idx) {
             ${meterLock.pending ? '<br><b>Очікує відправки в 1С (немає зв\'язку).</b>' : ''}
         </div>`;
     }
-
     if (orderLock) {
         notes += `<div class="lock-note order">
             Поповнення по цій точці вже внесено${lockTimeText(orderLock)}.
         </div>`;
     }
-
-        if (item.recount_locked === true) {
+    if (item.recount_locked === true) {
         const at = item.recount_locked_at ? ` (${item.recount_locked_at})` : '';
         notes += `<div class="lock-note recount">
             Перерахунок по цій точці вже внесено${at}.
@@ -786,7 +817,7 @@ function cardHtml(item, idx) {
                     <span class="point-title">${escapeHtml(item.point_name) || 'Без назви'}</span>
                     <span class="point-code" style="margin-left: 10px;">Код: ${id}</span>
                 </div>
-                ${badges}
+                ${badges.join('')}
             </div>
 
             <div class="point-grid">
@@ -844,16 +875,12 @@ function renderResults(data) {
 
     buildLockSnapshot();
 
-    let key = '';
-    for (let i = 0; i < data.length; i++) {
-        const snap = _lockSnapshot[String(data[i].id)] || {};
-        const d = Number(data[i].debt) || 0;
-        key += data[i].id + ':' + (snap.meter ? 1 : 0) + ':' + (snap.order ? 1 : 0) + ':' + d + '|';
-    }
-    key += (isUnlimitedUser() ? 'u' : '') + '|' + searchMode;
+    const searchInput = document.getElementById('searchInput');
+    const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+    const key = `${_dataRevision}:${_lockRevision}:${searchMode}:${query}:${isUnlimitedUser() ? 1 : 0}`;
 
     container.classList.toggle('single-result', data.length === 1);
-    container.scrollTop = 0;
+
     const first = container.firstElementChild;
     if (container.dataset.renderKey === key && first && first.hasAttribute('data-rendered')) return;
     container.dataset.renderKey = key;
@@ -863,10 +890,9 @@ function renderResults(data) {
 
     if (data.length === 0) {
         container.innerHTML = `<div class="empty-state" data-rendered="1">${SEARCH_MODES[searchMode].empty}</div>`;
-        container.scrollTop = 0;
-        return;
+    } else {
+        appendCards(container, true);
     }
-    appendCards(container, true);
     container.scrollTop = 0;
 }
 
@@ -879,6 +905,7 @@ function openMeterModal(pointId) {
         return;
     }
     rememberFocus();
+    _meterErrors.clear();
     currentPointId = item.id;
     currentMeterRequestId = newRequestId();
 
@@ -975,7 +1002,8 @@ function calculateRowTotal(input) {
         wrap.appendChild(errorHint);
     }
 
-    if (!isBlank && newVal < lastMeter) {
+    const hasError = !isBlank && newVal < lastMeter;
+    if (hasError) {
         input.classList.add('error');
         errorHint.classList.add('show');
         row.querySelector('.row-total').textContent = '0 ₴';
@@ -987,9 +1015,20 @@ function calculateRowTotal(input) {
         row.querySelector('.row-total').textContent = `${fmt(totalSum)} ₴`;
     }
 
-    const hasErrors = document.querySelectorAll('.meter-input.error').length > 0;
+    if (hasError) _meterErrors.add(input);
+    else _meterErrors.delete(input);
     const proceedBtn = document.querySelector('#modalOverlay .modal-footer .action-btn');
-    if (proceedBtn) proceedBtn.disabled = hasErrors;
+    if (proceedBtn) proceedBtn.disabled = _meterErrors.size > 0;
+}
+
+function clearMeterFlowState() {
+    currentPointId = null;
+    currentMeterRequestId = null;
+}
+
+function clearPaymentFlowState() {
+    currentPaymentPointId = null;
+    currentPaymentRequestId = null;
 }
 
 function showConfirmModal() {
@@ -1014,6 +1053,8 @@ function closeConfirmModal() {
 }
 function closeModal() {
     document.getElementById('modalOverlay')?.classList.remove('active');
+    _meterErrors.clear();
+    clearMeterFlowState();
     if (!getTopModal()) restoreFocus();
 }
 
@@ -1042,8 +1083,7 @@ function openPaymentModal(pointId) {
 }
 function closePaymentModal() {
     document.getElementById('paymentOverlay')?.classList.remove('active');
-    currentPaymentPointId = null;
-    currentPaymentRequestId = null;
+    clearPaymentFlowState();
     if (!getTopModal()) restoreFocus();
 }
 
@@ -1075,7 +1115,7 @@ async function submitPayment() {
 
     const btn = document.querySelector('#paymentOverlay .btn-success');
     const cancelBtn = document.querySelector('#paymentOverlay .btn-secondary');
-    cancelBtn.disabled = true;
+    if (cancelBtn) cancelBtn.disabled = true;
     setBtnLoading(btn, 'Відправка...');
     errorBox.style.display = 'none';
 
@@ -1090,28 +1130,42 @@ async function submitPayment() {
         const response = await postPayment(payload);
         if (!response.ok) {
             const errText = await response.text();
-            throw new Error(errText.slice(0, 150) || 'Помилка сервера 1С');
+            throw new Error((errText && errText.slice(0, 150)) || 'Помилка сервера 1С');
         }
+
+        let body = null;
+        try { body = await response.json(); } catch (e) {}
 
         invalidateLockSnapshot();
 
-        showSuccessAnimation();
-        showToast(`Оплата ${fmt(amount)} ₴ успішно проведена!`);
+        // 1С может вернуть " / " или пробелы даже когда ошибок нет
+        const rawConduct = (body && body.conduct_error != null) ? String(body.conduct_error) : '';
+        const conductError = rawConduct.replace(/[\s\/]+/g, '').length ? rawConduct : '';
+
+        if (conductError) {
+            console.error('[1С] помилка проведення ПКО:', conductError);
+            showToast('Оплата створена, але НЕ ПРОВЕДЕНА: ' + conductError.slice(0, 150), true);
+        } else {
+            showSuccessAnimation();
+            showToast(`Оплата ${fmt(amount)} ₴ успішно проведена!`);
+        }
+
         closePaymentModal();
 
-        // локально уменьшаем долг сразу + повторно тянем с сервера через паузу
-        refreshAfterSubmit(pointId, -amount);
+        if (!conductError) refreshAfterSubmit(pointId, -amount);
+        else refreshResults();
 
     } catch (error) {
-        if (error.message.includes('Failed to fetch') || error.message.includes('timeout')) {
+        const msg = error && error.message ? error.message : String(error);
+        if (msg.includes('Failed to fetch') || msg.toLowerCase().includes('timeout')) {
             errorBox.textContent = '1С не відповідає. Перевірте інтернет і спробуйте знову.';
         } else {
-            errorBox.textContent = `Не вдалося провести: ${error.message}`;
+            errorBox.textContent = `Не вдалося провести: ${msg}`;
         }
         errorBox.style.display = 'block';
     } finally {
         resetBtn(btn, 'Провести оплату');
-        cancelBtn.disabled = false;
+        if (cancelBtn) cancelBtn.disabled = false;
     }
 }
 
@@ -1125,14 +1179,10 @@ async function applyDebtDelta(pointId, delta) {
     catch (e) { console.warn('не зберегли кеш боргу', e); }
 }
 
-// обновление UI и данных после успешной отправки чего угодно
-// pointId  — точка, у которой меняется долг
-// debtDelta — на сколько изменить долг локально (может быть отрицательным)
 function refreshAfterSubmit(pointId, debtDelta) {
     if (debtDelta && pointId) applyDebtDelta(pointId, debtDelta);
-    refreshResults();                                  // мгновенно показываем изменение
-    loadData({ silent: true });                        // тянем с сервера сейчас
-    setTimeout(() => loadData({ silent: true }), 1500); // и ещё раз через 1.5 сек — 1С успеет провести
+    refreshResults();
+    setTimeout(() => loadData({ silent: true }), 600);
 }
 
 async function submitMeters() {
@@ -1149,8 +1199,10 @@ async function submitMeters() {
     let sessionTotal = 0;
 
     rows.forEach(row => {
-        const name = row.querySelector('.drink-name').textContent.trim();
+        const nameEl = row.querySelector('.drink-name');
+        const name = nameEl ? nameEl.textContent.trim() : '';
         const meterInput = row.querySelector('.meter-input');
+        if (!meterInput) return;
         const price = Number(meterInput.getAttribute('data-price')) || 0;
         const value = Number(meterInput.value) || 0;
         const lastMeter = Number(meterInput.getAttribute('data-last')) || 0;
@@ -1193,7 +1245,10 @@ async function submitMeters() {
             refreshResults();
             return;
         }
-        if (!response.ok) throw new Error(await response.text() || 'Помилка сервера 1С');
+        if (!response.ok) {
+            const errText = await response.text();
+            throw new Error((errText && errText.slice(0, 200)) || 'Помилка сервера 1С');
+        }
 
         let body = null;
         try { body = await response.json(); } catch (e) {}
@@ -1206,7 +1261,8 @@ async function submitMeters() {
         lockPoint(pointId);
         invalidateLockSnapshot();
 
-        if (body && body.debt_error) {
+        const hasDebtError = body && body.debt_error;
+        if (hasDebtError) {
             console.error('[1С] борг не нарахований:', body.debt_error);
             showToast('Документ створено, але БОРГ НЕ НАРАХОВАНО: ' + String(body.debt_error).slice(0, 150), true);
         } else {
@@ -1216,16 +1272,17 @@ async function submitMeters() {
 
         finishSubmission();
 
-        // долг на точке растёт на сумму продажи
-        refreshAfterSubmit(pointId, sessionTotal);
+        if (!hasDebtError) refreshAfterSubmit(pointId, sessionTotal);
+        else refreshResults();
 
     } catch (error) {
-        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        const msg = error && error.message ? error.message : String(error);
+        if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
             saveOffline(payload);
             finishSubmission();
             refreshResults();
         } else {
-            showToast(`Помилка: ${error.message}`, true);
+            showToast(`Помилка: ${msg}`, true);
         }
     } finally {
         resetBtn(confirmBtn, 'Відправити в 1С');
@@ -1235,21 +1292,21 @@ async function submitMeters() {
 function finishSubmission() {
     closeConfirmModal();
     closeModal();
-    currentPointId = null;
-    currentMeterRequestId = null;
-    // не сбрасываем поиск — оставляем пользователя на том же экране
-    if (AUTO_LOGOUT_AFTER_SUBMIT && typeof logout === 'function') logout();
+    clearMeterFlowState();
+    clearPaymentFlowState();
 }
 
 function setBtnLoading(btn, text) {
+    if (!btn) return;
+    if (!btn.dataset.originalText) btn.dataset.originalText = btn.textContent.trim();
     btn.disabled = true;
-    btn.dataset.originalText = btn.textContent;
     btn.textContent = text;
     btn.classList.add('btn-loading');
 }
 function resetBtn(btn, text) {
+    if (!btn) return;
     btn.disabled = false;
-    btn.textContent = text;
+    btn.textContent = text || btn.dataset.originalText || 'OK';
     btn.classList.remove('btn-loading');
 }
 
@@ -1462,6 +1519,7 @@ function lockTimeText(lock) {
 // ─── сброс ─────────────────────────────────────────────
 function resetAppState() {
     globalData = [];
+    _dataRevision++;
     lastResults = [];
     renderedCount = 0;
     lastLoadedAt = 0;
@@ -1512,13 +1570,19 @@ function resetAppState() {
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 function getTopModal() {
-    const modals = Array.from(document.querySelectorAll('.modal-overlay.active'));
+    const modals = document.querySelectorAll('.modal-overlay.active');
     if (!modals.length) return null;
-    return modals.reduce((top, m) => {
-        const z = Number(m.style.zIndex) || 0;
-        const topZ = top ? (Number(top.style.zIndex) || 0) : -1;
-        return z > topZ ? m : top;
-    }, null);
+
+    let top = null;
+    let topZ = -Infinity;
+
+    for (const m of modals) {
+        const rawZ = getComputedStyle(m).zIndex;
+        const z = Number(rawZ);
+        const zz = Number.isFinite(z) ? z : 1000;
+        if (zz > topZ) { topZ = zz; top = m; }
+    }
+    return top;
 }
 
 function closeTopModal() {
@@ -1616,6 +1680,9 @@ async function manualRefresh() {
     try {
         if (readQueue().length) await syncOfflineMeters({ manual: true });
         await loadData({ silent: false });
+    } catch (err) {
+        console.warn('[manualRefresh]', err);
+        showToast('Не вдалося оновити дані', true);
     } finally {
         if (box) setTimeout(() => box.classList.remove('syncing'), 400);
     }
@@ -1741,6 +1808,3 @@ async function openStockModal(pointId) {
         `;
     }
 }
-
-
-

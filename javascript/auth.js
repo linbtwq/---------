@@ -1,18 +1,20 @@
 let currentUser = null;
 
-// проверка активной сессии при старте
+// ─── восстановление сессии ─────────────────────────────
 (function checkInitialAuth() {
-    const savedUser = localStorage.getItem('currentUser');
-    if (savedUser) {
-        try {
-            currentUser = JSON.parse(savedUser);
-        } catch (e) {
-            localStorage.removeItem('currentUser');
-        }
+    try {
+        const saved = localStorage.getItem('currentUser');
+        if (!saved) return;
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.id) currentUser = parsed;
+        else localStorage.removeItem('currentUser');
+    } catch (e) {
+        localStorage.removeItem('currentUser');
+        currentUser = null;
     }
 })();
 
-// настройка экранов после загрузки страницы
+// ─── настройка экрана входа ────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     const authOverlay = document.getElementById('authOverlay');
     const pinInput = document.getElementById('pinInput');
@@ -27,65 +29,75 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (pinInput) {
-        pinInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') login();
+        // только цифры
+        pinInput.addEventListener('input', () => {
+            pinInput.value = pinInput.value.replace(/\D/g, '').slice(0, 12);
+            const err = document.getElementById('authError');
+            if (err) err.style.display = 'none';
+        });
+
+        pinInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); login(); }
         });
     }
 });
 
-// боевая логика входа через 1С
+// ─── вход ──────────────────────────────────────────────
 async function login() {
     const pinInput = document.getElementById('pinInput');
     const errorMsg = document.getElementById('authError');
     const authOverlay = document.getElementById('authOverlay');
-    const loginBtn = authOverlay.querySelector('.action-btn');
+    const loginBtn = authOverlay ? authOverlay.querySelector('.action-btn') : null;
 
-    if (!pinInput) return;
+    if (!pinInput || !errorMsg || !authOverlay || !loginBtn) return;
+
     const pin = pinInput.value.trim();
-    if (!pin) return;
+    if (!pin) {
+        errorMsg.textContent = 'Введіть ПІН-код';
+        errorMsg.style.display = 'block';
+        pinInput.focus();
+        return;
+    }
 
-    // блокируем интерфейс на время запроса к 1С
     loginBtn.disabled = true;
     loginBtn.textContent = 'Перевірка...';
     errorMsg.style.display = 'none';
 
     try {
         const apiBaseUrl = String(APP_CONFIG.apiBase).replace(/\/+$/, '');
-
         const response = await fetch(`${apiBaseUrl}/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pin: pin })
+            body: JSON.stringify({ pin })
         });
 
-        if (!response.ok) throw new Error('Помилка сервера 1С');
+        if (!response.ok) throw new Error('server');
 
         const data = await response.json();
-
-        if (data.Code && String(data.Code) !== "0") {
-            currentUser = { 
-                            id: String(data.Code), 
-                            name: data.Name,
-                            isAdmin: data.IsAdmin === true
-                            };
-            localStorage.setItem('currentUser', JSON.stringify(currentUser));
-
-            authOverlay.classList.add('fade-out');
-            setTimeout(() => {
-                authOverlay.style.display = 'none';
-                authOverlay.classList.remove('fade-out');
-            }, 300);
-
-            pinInput.value = '';
-            showUserInfo();
-
-            if (typeof startApp === 'function') startApp();
-        } else {
-            throw new Error('Невірний ПІН-код');
+        if (!data || !data.Code || String(data.Code) === '0') {
+            throw new Error('pin');
         }
 
+        currentUser = {
+            id: String(data.Code),
+            name: data.Name || 'Користувач',
+            isAdmin: data.IsAdmin === true
+        };
+        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+
+        authOverlay.classList.add('fade-out');
+        setTimeout(() => {
+            authOverlay.style.display = 'none';
+            authOverlay.classList.remove('fade-out');
+        }, 250);
+
+        pinInput.value = '';
+        showUserInfo();
+        if (typeof startApp === 'function') startApp();
+
     } catch (err) {
-        errorMsg.textContent = err.message === 'Невірний ПІН-код' ? 'Невірний ПІН-код' : 'Немає зв\'язку з 1С';
+        const isPin = err && err.message === 'pin';
+        errorMsg.textContent = isPin ? 'Невірний ПІН-код' : 'Немає зв\'язку з 1С';
         errorMsg.style.display = 'block';
 
         if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
@@ -100,7 +112,7 @@ async function login() {
     }
 }
 
-// логика выхода из системы
+// ─── выход ─────────────────────────────────────────────
 function logout() {
     document.querySelectorAll('.modal-overlay.active')
         .forEach(m => m.classList.remove('active'));
@@ -112,13 +124,10 @@ function logout() {
     if (authOverlay) authOverlay.style.display = 'flex';
 
     const pinInput = document.getElementById('pinInput');
-    if (pinInput) {
-        pinInput.focus();
-        pinInput.value = '';
-    }
+    if (pinInput) { pinInput.value = ''; pinInput.focus(); }
 
     const userBadge = document.getElementById('userBadge');
-    if (userBadge) userBadge.innerHTML = '';
+    if (userBadge) userBadge.replaceChildren();
 
     const resultsContainer = document.getElementById('resultsContainer');
     if (resultsContainer) resultsContainer.innerHTML = '';
@@ -129,18 +138,20 @@ function logout() {
     if (typeof resetAppState === 'function') resetAppState();
 }
 
-// вывод имени пользователя в шапку
+// ─── шапка с пользователем ─────────────────────────────
 function showUserInfo() {
     const userBadge = document.getElementById('userBadge');
-    if (userBadge && currentUser) {
-        const name = document.createElement('span');
-        name.className = 'user-name';
-        name.textContent = `👤 ${currentUser.name}`;
-        const btn = document.createElement('button');
-        btn.className = 'logout-btn';
-        btn.textContent = 'Вийти';
-        btn.addEventListener('click', logout);
-        userBadge.replaceChildren(name);
-        userBadge.appendChild(btn);
-    }
+    if (!userBadge || !currentUser) return;
+
+    const name = document.createElement('span');
+    name.className = 'user-name';
+    name.textContent = `👤 ${currentUser.name}`;
+
+    const btn = document.createElement('button');
+    btn.className = 'logout-btn';
+    btn.type = 'button';
+    btn.textContent = 'Вийти';
+    btn.addEventListener('click', logout);
+
+    userBadge.replaceChildren(name, btn);
 }

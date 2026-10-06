@@ -43,6 +43,8 @@ function ensureRecountModal() {
 function closeRecountModal() {
     if (recountSending) return;
     document.getElementById('recountOverlay')?.classList.remove('active');
+    recountPointId = null;
+    recountItems = [];
     if (typeof getTopModal === 'function' && !getTopModal() && typeof restoreFocus === 'function') {
         restoreFocus();
     }
@@ -295,6 +297,7 @@ async function submitRecount() {
     setBtnLoading(btn, 'Відправка...');
 
     let success = false;
+    let conductError = '';
 
     try {
         const res = await fetchWithTimeout(
@@ -312,8 +315,15 @@ async function submitRecount() {
 
         if (!res.ok) {
             const errText = await res.text();
-            throw new Error(errText.slice(0, 150) || 'Помилка сервера 1С');
+            throw new Error((errText && errText.slice(0, 200)) || 'Помилка сервера 1С');
         }
+
+        let body = null;
+        try { body = await res.json(); } catch (e) {}
+
+        // 1С возвращает conduct_error в 200-ответе, если документ записался, но не провёлся
+        const raw = (body && body.conduct_error != null) ? String(body.conduct_error) : '';
+        conductError = raw.replace(/[\s\/]+/g, '').length ? raw : '';
 
         success = true;
 
@@ -328,13 +338,17 @@ async function submitRecount() {
         if (closeBtn) closeBtn.disabled = false;
         resetBtn(btn, 'Відправити в 1С');
 
-                if (success) {
-            showSuccessAnimation();
-            showToast('Перерахунок відправлено в 1С');
+        if (success) {
+            if (conductError) {
+                console.error('[1С] перерахунок не проведено:', conductError);
+                showToast('Документ створено, але НЕ ПРОВЕДЕНО: ' + conductError.slice(0, 150), true);
+            } else {
+                showSuccessAnimation();
+                showToast('Перерахунок відправлено в 1С');
+            }
 
             recountItems = [];
             recountPointId = null;
-
             closeRecountModal();
             loadData({ silent: true });
         } else {
@@ -342,3 +356,4 @@ async function submitRecount() {
         }
     }
 }
+

@@ -7,10 +7,14 @@ importScripts('./version.js');
 
 const CACHE_NAME = `coffee-meters-v${APP_VERSION}`;
 
+// добавлены css-файлы, которые подтягиваются через @import из style.css
 const ASSETS = [
     './',
     './index.html',
     './style.css',
+    './css/modals.css',
+    './css/ui.css',
+    './css/mobile.css',
     './manifest.json',
     './version.js',
     './javascript/config.js',

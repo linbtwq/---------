@@ -3,8 +3,8 @@
 const APP_CONFIG = {
   // адрес http сервиса 1с
   // лишний слэш в конце будет автоматически убран в script.js
- apiBase: 'http://192.168.57.85/siteapi/hs/siteapi',
- apiVersion: '1.0',
+  apiBase: 'http://192.168.57.85/siteapi/hs/siteapi',
+  apiVersion: '1.0',
 
   // таймауты запросов в миллисекундах
   // загрузка справочника обычно должна быть быстрее, чем отправка документов
@@ -20,11 +20,12 @@ const APP_CONFIG = {
   // value hours на число часов из lockHours
   lockMode: 'endOfDay',
   lockHours: 12,
-  
+
   autoLogoutAfterSubmit: false,
 
   pageSize: 30,
   refreshAfterMinutes: 5
 };
 
-
+// fallback на apiVersion, чтобы URL не сломались при опечатке в конфиге
+if (!APP_CONFIG.apiVersion) APP_CONFIG.apiVersion = '1.0';

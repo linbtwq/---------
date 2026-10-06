@@ -95,8 +95,11 @@ function orderTotals() {
     let sum = 0;
 
     for (const code in order.qty) {
+        const q = order.qty[code];
+        if (!q) continue;
+        const price = (order.items[code] && Number(order.items[code].price)) || 0;
         count++;
-        sum += order.qty[code] * (order.items[code]?.price || 0);
+        sum += q * price;
     }
 
     return { count, sum };
@@ -153,19 +156,19 @@ function setQty(code, value, tile, syncInput) {
     updateOrderBar();
 }
 
-function point_orders_locked(pointId, orderSum) {
-    const item = globalData.find(i => String(i.id) === String(pointId));
-    if (!item) return;
+// function point_orders_locked(pointId, orderSum) {
+   // const item = globalData.find(i => String(i.id) === String(pointId));
+   // if (!item) return;
 
-    item.order_locked = true;
-    item.order_locked_at = new Date().toLocaleString('uk-UA');
+    //item.order_locked = true;
+   // item.order_locked_at = new Date().toLocaleString('uk-UA');
 
     // долг двигает 1С через документ — не трогаем локально,
     // просто подтянем с сервера
-    if (typeof loadData === 'function') {
-        loadData({ silent: true });
-    }
-}
+   // if (typeof loadData === 'function') {
+    //    loadData({ silent: true });
+   // }
+//}
 
 async function submitOrder() {
     if (orderSending || !order.canOrder) return;
@@ -231,8 +234,20 @@ async function submitOrder() {
         let body = null;
         try { body = await res.json(); } catch (e) {}
 
-        if (body && Number(body.sum)) finalSum = Number(body.sum);
-        if (body && body.debt_error) debtError = String(body.debt_error);
+        let conductError = '';
+if (body && body.conduct_error != null) {
+    const raw = String(body.conduct_error);
+    if (raw.replace(/[\s\/]+/g, '').length) conductError = raw;
+}
+
+// в конце, где показываешь тосты
+if (conductError) {
+    showToast('Замовлення створено, але НЕ ПРОВЕДЕНО: ' + conductError.slice(0, 150), true);
+} else if (debtError) {
+    showToast('Замовлення створено, але БОРГ НЕ НАРАХОВАНО: ' + debtError.slice(0, 150), true);
+} else {
+    showToast(`Замовлення відправлено: ${count} поз. на ${fmt(finalSum)} ₴`);
+}
 
         success = true;
 
@@ -302,11 +317,12 @@ function renderAssortBody(data, offline) {
     order.items = {};
 
     data.forEach(it => {
-        order.items[String(it.Code)] = {
-            name: String(it.Name || ''),
-            price: Number(it.price) || 0
-        };
-    });
+    const code = String(it.Code);
+    order.items[code] = {
+        name: String(it.Name || ''),
+        price: Number(it.price) || 0
+    };
+});
 
     const prices = data.map(i => Number(i.price) || 0);
     const min = Math.min(...prices);
@@ -558,6 +574,7 @@ function closeAssortModal() {
     if (orderSending) return;
 
     document.getElementById('assortOverlay')?.classList.remove('active');
+    resetOrder();
 
     if (!getTopModal()) {
         restoreFocus();
