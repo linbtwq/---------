@@ -273,6 +273,29 @@ const localDB = {
     }
 };
 
+// Очистка IndexedDB — вызывается из auth.js::logout()
+// чтобы следующий пользователь не увидел чужие данные
+function clearLocalDb() {
+    return new Promise((resolve) => {
+        try {
+            if (localDB._db) {
+                localDB._db.close();
+                localDB._db = null;
+            }
+        } catch (e) {}
+
+        if (!window.indexedDB || !indexedDB.deleteDatabase) { resolve(); return; }
+
+        try {
+            const req = indexedDB.deleteDatabase('CoffeeMetersDB');
+            req.onsuccess = req.onerror = req.onblocked = () => resolve();
+        } catch (e) {
+            resolve();
+        }
+    });
+}
+window.clearLocalDb = clearLocalDb;
+
 // ─── инициализация ─────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     initServiceWorker();
@@ -411,10 +434,20 @@ function initClearCacheButton() {
     if (!btn) return;
 
     btn.addEventListener('click', async () => {
+        // Блокируем очистку, если есть неотправленные данные
+        if (readQueue().length > 0) {
+            await showConfirmDialog({
+                title: 'Помилка',
+                message: 'Неможливо очистити кеш: є невідправлені дані. Дочекайтеся появи мережі.',
+                cancelText: 'Закрити'
+            });
+            return;
+        }
+
         const ok = await showConfirmDialog({
             title: 'Очистити кеш?',
             message: 'Сторінка перезавантажиться. Авторизація залишиться.',
-            details: ['Буде очищено збережені дані', 'Офлайн-черга', 'Кеш файлів'],
+            details: ['Буде очищено збережені дані', 'Кеш файлів'],
             okText: 'Очистити',
             cancelText: 'Скасувати',
             danger: true
@@ -429,12 +462,8 @@ function initClearCacheButton() {
                 const keys = await caches.keys();
                 await Promise.all(keys.map(k => caches.delete(k)));
             }
-            if (window.indexedDB && indexedDB.deleteDatabase) {
-                await new Promise((resolve) => {
-                    const req = indexedDB.deleteDatabase('CoffeeMetersDB');
-                    req.onsuccess = req.onerror = req.onblocked = () => resolve();
-                });
-            }
+            await clearLocalDb();
+
             const keepUser = localStorage.getItem('currentUser');
             const keepDark = localStorage.getItem('darkMode');
             const keepMode = localStorage.getItem('searchMode');
@@ -448,6 +477,69 @@ function initClearCacheButton() {
 
         setTimeout(() => location.reload(), 300);
     });
+}
+
+async function runSync({ manual, quiet }) {
+    const queue = readQueue();
+    if (queue.length === 0) return;
+
+    let queueChanged = false;
+    for (const p of queue) {
+        if (!p.request_id) {
+            p.request_id = newRequestId();
+            queueChanged = true;
+        }
+    }
+    if (queueChanged) saveQueue(queue);
+
+    if (!quiet) showToast(`Відправка записів із черги: ${queue.length}...`);
+    const done = new Set();
+    let netFail = false;
+    let serverError = '';
+
+    for (const payload of queue) {
+        try {
+            const response = await postMeters(payload);
+            if (response.ok || response.status === 409) {
+                markSynced(payload.point_id);
+                done.add(payload.request_id);
+                setConnectionStatus(true);
+            } else {
+                const body = (await response.text().catch(() => '')).slice(0, 120);
+                serverError = `1С відповіла ${response.status}${body ? ': ' + body : ''}`;
+                console.warn('[sync] помилка сервера:', response.status, body, payload);
+
+                // Счетчик попыток для битых записей (400/500)
+                payload.retries = (payload.retries || 0) + 1;
+                if (payload.retries >= 3) {
+                    console.error('Ліміт спроб вичерпано для', payload.point_id);
+                    markSynced(payload.point_id);
+                    done.add(payload.request_id);
+                }
+            }
+        } catch (err) {
+            netFail = true;
+            console.warn('[sync] немає зв\'язку з 1С:', err.message);
+            setConnectionStatus(false);
+            continue; // Прерываем только текущий payload, сеть могла лечь
+        }
+    }
+
+    const rest = readQueue().filter(p => !done.has(p.request_id));
+    saveQueue(rest);
+    invalidateLockSnapshot();
+
+    lastSyncError = rest.length ? (netFail ? 'немає зв\'язку з 1С' : serverError) : '';
+    if (done.size) retryAttempt = 0;
+
+    if (done.size && rest.length === 0) {
+        showToast('Усі записи з черги відправлені в 1С.');
+        loadData({ silent: true });
+    } else if (done.size) {
+        showToast(`Відправлено: ${done.size}, залишилось: ${rest.length}`, true);
+    } else if (rest.length && !quiet) {
+        showToast(`Не відправлено: ${rest.length}. ${lastSyncError || 'немає зв\'язку з 1С'}`, true);
+    }
 }
 
 function initEventListeners() {
@@ -928,7 +1020,7 @@ function openMeterModal(pointId) {
             const price = Number(drink.price) || 0;
             const lastMeter = Number(drink.last_meter) || 0;
             return `
-                <div class="meter-input-group assort-row" data-drink-row>
+                <div class="meter-input-group assort-row" data-drink-row data-code="${escapeHtml(drink.code || '')}">
                     <div class="assort-row-head">
                         <strong class="assort-tile-name drink-name">${escapeHtml(drink.name) || 'Без назви'}</strong>
                         <span class="assort-row-price">Ціна: <strong>${fmt(price)} ₴</strong></span>
@@ -1190,7 +1282,7 @@ async function submitMeters() {
     const currentItem = globalData.find(i => String(i.id) === String(pointId));
     if (currentItem && isMeterBlocked(currentItem)) {
         showToast('По цій точці показники вже зняті. Зміни — через 1С.', true);
-        finishSubmission();
+        finishSubmission({ logout: false });
         return;
     }
 
@@ -1201,6 +1293,7 @@ async function submitMeters() {
     rows.forEach(row => {
         const nameEl = row.querySelector('.drink-name');
         const name = nameEl ? nameEl.textContent.trim() : '';
+        const code = row.dataset.code || '';
         const meterInput = row.querySelector('.meter-input');
         if (!meterInput) return;
         const price = Number(meterInput.getAttribute('data-price')) || 0;
@@ -1208,10 +1301,10 @@ async function submitMeters() {
         const lastMeter = Number(meterInput.getAttribute('data-last')) || 0;
         const delta = value - lastMeter;
 
-        if (name) {
+        if (code || name) {
             const itemTotal = delta > 0 ? delta * price : 0;
             sessionTotal += itemTotal;
-            metersData.push({ name, price, value, delta: delta > 0 ? delta : 0, total: itemTotal });
+            metersData.push({ code, name, price, value, delta: delta > 0 ? delta : 0, total: itemTotal });
         }
     });
 
@@ -1289,11 +1382,15 @@ async function submitMeters() {
     }
 }
 
-function finishSubmission() {
+function finishSubmission({ logout: doLogout = AUTO_LOGOUT_AFTER_SUBMIT } = {}) {
     closeConfirmModal();
     closeModal();
     clearMeterFlowState();
     clearPaymentFlowState();
+
+    if (doLogout && typeof logout === 'function') {
+        setTimeout(() => logout(), 1800);
+    }
 }
 
 function setBtnLoading(btn, text) {
@@ -1345,61 +1442,6 @@ async function syncOfflineMeters(opts) {
         isSyncing = false;
         renderStatus();
         scheduleSyncRetry();
-    }
-}
-
-async function runSync({ manual, quiet }) {
-    const queue = readQueue();
-    if (queue.length === 0) return;
-
-    let queueChanged = false;
-    for (const p of queue) {
-        if (!p.request_id) {
-            p.request_id = newRequestId();
-            queueChanged = true;
-        }
-    }
-    if (queueChanged) saveQueue(queue);
-
-    if (!quiet) showToast(`Відправка записів із черги: ${queue.length}...`);
-    const done = new Set();
-    let netFail = false;
-    let serverError = '';
-
-    for (const payload of queue) {
-        try {
-            const response = await postMeters(payload);
-            if (response.ok || response.status === 409) {
-                markSynced(payload.point_id);
-                done.add(payload.request_id);
-                setConnectionStatus(true);
-            } else {
-                const body = (await response.text().catch(() => '')).slice(0, 120);
-                serverError = `1С відповіла ${response.status}${body ? ': ' + body : ''}`;
-                console.warn('[sync] помилка сервера:', response.status, body, payload);
-            }
-        } catch (err) {
-            netFail = true;
-            console.warn('[sync] немає зв\'язку з 1С:', err.message);
-            setConnectionStatus(false);
-            continue;
-        }
-    }
-
-    const rest = readQueue().filter(p => !done.has(p.request_id));
-    saveQueue(rest);
-    invalidateLockSnapshot();
-
-    lastSyncError = rest.length ? (netFail ? 'немає зв\'язку з 1С' : serverError) : '';
-    if (done.size) retryAttempt = 0;
-
-    if (done.size && rest.length === 0) {
-        showToast('Усі записи з черги відправлені в 1С.');
-        loadData({ silent: true });
-    } else if (done.size) {
-        showToast(`Відправлено: ${done.size}, залишилось: ${rest.length}`, true);
-    } else if (rest.length && !quiet) {
-        showToast(`Не відправлено: ${rest.length}. ${lastSyncError || 'немає зв\'язку з 1С'}`, true);
     }
 }
 
@@ -1643,6 +1685,21 @@ function autofocusModal(modal) {
     if (!modal) return;
     const box = modal.querySelector('.modal-box');
     if (!box) return;
+
+    // Сначала пробуем сфокусировать текстовое поле — это удобнее для оператора
+    const inputs = Array.from(box.querySelectorAll(
+        'input:not([disabled]):not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"])'
+    )).filter(el => el.offsetParent !== null);
+
+    if (inputs.length) {
+        const firstInput = inputs[0];
+        try {
+            firstInput.focus();
+            if (typeof firstInput.select === 'function') firstInput.select();
+        } catch (e) {}
+        return;
+    }
+
     const focusables = Array.from(box.querySelectorAll(FOCUSABLE)).filter(el => el.offsetParent !== null);
     if (focusables.length) focusables[0].focus();
 }

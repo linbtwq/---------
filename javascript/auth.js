@@ -120,6 +120,12 @@ function logout() {
     localStorage.removeItem('currentUser');
     currentUser = null;
 
+    // Очищаем локальную базу данных, чтобы следующий пользователь
+    // не увидел чужие закешированные точки, ассортимент и долги
+    if (typeof window.clearLocalDb === 'function') {
+        try { window.clearLocalDb().catch(() => {}); } catch (e) {}
+    }
+
     const authOverlay = document.getElementById('authOverlay');
     if (authOverlay) authOverlay.style.display = 'flex';
 

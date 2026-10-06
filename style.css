@@ -208,11 +208,16 @@ body.dark-theme .search-box:focus-within {
     margin-top: 10px;
     font-size: 0.8rem;
     color: var(--text-muted);
-    transition: opacity 0.3s;
+    opacity: 1;
+    max-height: 30px;
+    overflow: hidden;
+    transition: opacity 0.3s ease, max-height 0.3s ease, margin-top 0.3s ease;
 }
 
 .search-container.top .search-hint {
     opacity: 0;
+    max-height: 0;
+    margin-top: 0;
     pointer-events: none;
 }
 
