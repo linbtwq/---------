@@ -58,7 +58,8 @@ self.addEventListener('fetch', (e) => {
     if (req.method !== 'GET') return;
     const url = new URL(req.url);
     if (url.origin !== self.location.origin) return;
-    if (url.pathname.includes('/siteapi/')) return;
+    // api 1с не кешируем независимо от имени http сервиса
+    if (url.pathname.includes('/hs/')) return;
     e.respondWith(networkFirst(req));
 });
 

@@ -132,6 +132,65 @@ function saveQueue(q) {
     _queueCacheAt = Date.now();
 }
 
+// ─── отклоненные записи очереди ─────────────────────────
+// запись попадает сюда когда 1С несколько раз подряд ответила ошибкой
+const MAX_QUEUE_ATTEMPTS = 5;
+const FAILED_KEY = 'failedMetersQueue';
+const FAILED_TTL_MS = 14 * 24 * 3600 * 1000;
+
+function readFailed() {
+    try {
+        const list = JSON.parse(localStorage.getItem(FAILED_KEY)) || [];
+        const now = Date.now();
+        return list.filter(f => f && f.payload && f.at && now - f.at < FAILED_TTL_MS);
+    } catch (e) {
+        return [];
+    }
+}
+function saveFailed(list) {
+    if (list.length) localStorage.setItem(FAILED_KEY, JSON.stringify(list));
+    else localStorage.removeItem(FAILED_KEY);
+}
+
+// снимает локальную блокировку только если она ждала отправки
+function unlockPoint(pointId) {
+    const locks = getLocks();
+    const lock = locks[String(pointId)];
+    if (lock && lock.pending) {
+        delete locks[String(pointId)];
+        saveLocks(locks);
+        invalidateLockSnapshot();
+    }
+}
+
+// показывает отклоненные записи и предлагает отправить их заново
+async function reviewFailedQueue() {
+    const failed = readFailed();
+    if (!failed.length) return false;
+
+    const ok = await showConfirmDialog({
+        title: 'Не відправлені записи',
+        message: '1С відхилила ці показники. Повторити відправку?',
+        details: failed.map(f => `Точка ${f.payload.point_id}: ${String(f.error || 'помилка').slice(0, 90)}`),
+        okText: 'Повторити',
+        cancelText: 'Закрити'
+    });
+    if (!ok) return false;
+
+    const queue = readQueue().slice();
+    for (const f of failed) {
+        f.payload.attempts = 0;
+        delete f.payload.lastError;
+        queue.push(f.payload);
+        lockPoint(f.payload.point_id, true);
+    }
+    saveFailed([]);
+    saveQueue(queue);
+    retryAttempt = 0;
+    scheduleSyncRetry();
+    return true;
+}
+
 // ─── снимок блокировок ─────────────────────────────────
 let _lockSnapshot = {};
 let _lockSnapshotKey = '';
@@ -467,10 +526,12 @@ function initClearCacheButton() {
             const keepUser = localStorage.getItem('currentUser');
             const keepDark = localStorage.getItem('darkMode');
             const keepMode = localStorage.getItem('searchMode');
+            const keepFailed = localStorage.getItem(FAILED_KEY);
             localStorage.clear();
             if (keepUser) localStorage.setItem('currentUser', keepUser);
             if (keepDark) localStorage.setItem('darkMode', keepDark);
             if (keepMode) localStorage.setItem('searchMode', keepMode);
+            if (keepFailed) localStorage.setItem(FAILED_KEY, keepFailed);
         } catch (e) {
             console.warn('[clear cache]', e);
         }
@@ -494,6 +555,8 @@ async function runSync({ manual, quiet }) {
 
     if (!quiet) showToast(`Відправка записів із черги: ${queue.length}...`);
     const done = new Set();
+    const dropped = [];
+    let sentCount = 0;
     let netFail = false;
     let serverError = '';
 
@@ -503,17 +566,18 @@ async function runSync({ manual, quiet }) {
             if (response.ok || response.status === 409) {
                 markSynced(payload.point_id);
                 done.add(payload.request_id);
+                sentCount++;
                 setConnectionStatus(true);
             } else {
-                const body = (await response.text().catch(() => '')).slice(0, 120);
+                const body = (await response.text().catch(() => '')).slice(0, 160);
                 serverError = `1С відповіла ${response.status}${body ? ': ' + body : ''}`;
                 console.warn('[sync] помилка сервера:', response.status, body, payload);
 
-                // Счетчик попыток для битых записей (400/500)
-                payload.retries = (payload.retries || 0) + 1;
-                if (payload.retries >= 3) {
-                    console.error('Ліміт спроб вичерпано для', payload.point_id);
-                    markSynced(payload.point_id);
+                // ошибку сервера считаем попыткой, сетевые сбои не считаем
+                payload.attempts = (payload.attempts || 0) + 1;
+                payload.lastError = serverError;
+                if (payload.attempts >= MAX_QUEUE_ATTEMPTS) {
+                    dropped.push(payload);
                     done.add(payload.request_id);
                 }
             }
@@ -521,25 +585,48 @@ async function runSync({ manual, quiet }) {
             netFail = true;
             console.warn('[sync] немає зв\'язку з 1С:', err.message);
             setConnectionStatus(false);
-            continue; // Прерываем только текущий payload, сеть могла лечь
+            continue;
         }
     }
 
-    const rest = readQueue().filter(p => !done.has(p.request_id));
+    // отклоненные записи не удаляем а переносим в отдельный список
+    if (dropped.length) {
+        const failed = readFailed();
+        for (const p of dropped) {
+            failed.push({ payload: p, error: p.lastError || '', at: Date.now() });
+        }
+        saveFailed(failed);
+    }
+
+    // кеш очереди живет 500 мс и после долгих запросов читается заново
+    // поэтому счетчик попыток переносим из обработанных объектов вручную
+    const byId = new Map(queue.map(p => [p.request_id, p]));
+    const rest = readQueue()
+        .filter(p => !done.has(p.request_id))
+        .map(p => byId.get(p.request_id) || p);
     saveQueue(rest);
+
+    // снимаем блокировку точки если по ней в очереди больше ничего не осталось
+    for (const p of dropped) {
+        if (!rest.some(r => String(r.point_id) === String(p.point_id))) unlockPoint(p.point_id);
+    }
     invalidateLockSnapshot();
 
     lastSyncError = rest.length ? (netFail ? 'немає зв\'язку з 1С' : serverError) : '';
-    if (done.size) retryAttempt = 0;
+    if (sentCount) retryAttempt = 0;
 
-    if (done.size && rest.length === 0) {
+    if (dropped.length) {
+        showToast(`1С відхилила записів: ${dropped.length}. Натисніть на статус зв'язку.`, true);
+    } else if (sentCount && rest.length === 0) {
         showToast('Усі записи з черги відправлені в 1С.');
         loadData({ silent: true });
-    } else if (done.size) {
-        showToast(`Відправлено: ${done.size}, залишилось: ${rest.length}`, true);
+    } else if (sentCount) {
+        showToast(`Відправлено: ${sentCount}, залишилось: ${rest.length}`, true);
     } else if (rest.length && !quiet) {
         showToast(`Не відправлено: ${rest.length}. ${lastSyncError || 'немає зв\'язку з 1С'}`, true);
     }
+
+    if (sentCount && rest.length === 0 && dropped.length) loadData({ silent: true });
 }
 
 function initEventListeners() {
@@ -1016,6 +1103,17 @@ function openMeterModal(pointId) {
         const min = Math.min(...prices), max = Math.max(...prices);
         const priceText = min === max ? `${fmt(min)} ₴` : `${fmt(min)}–${fmt(max)} ₴`;
 
+        // общий счетчик показываем только если в 1С у оборудования стоит галочка
+        const sumLast = item.assortment.reduce((s, d) => s + (Number(d.last_meter) || 0), 0);
+        const serverTotal = item.total_counter == null ? NaN : Number(item.total_counter);
+        const totalBase = Number.isFinite(serverTotal) ? serverTotal : sumLast;
+        const totalPill = item.use_total_counter === true
+            ? `<span class="assort-pill total">Загальний лічильник
+                   <b id="totalCounterValue" data-base="${totalBase}">${fmt(totalBase)}</b>
+                   <span class="pill-delta" id="totalCounterDelta"></span>
+               </span>`
+            : '';
+
         const rowsHtml = item.assortment.map(drink => {
             const price = Number(drink.price) || 0;
             const lastMeter = Number(drink.last_meter) || 0;
@@ -1054,6 +1152,7 @@ function openMeterModal(pointId) {
         bodyHtml = `
             <div class="assort-panel">
                 <div class="assort-pills">
+                    ${totalPill}
                     <span class="assort-pill">${item.assortment.length} поз.</span>
                     <span class="assort-pill price">${priceText}</span>
                 </div>
@@ -1111,6 +1210,26 @@ function calculateRowTotal(input) {
     else _meterErrors.delete(input);
     const proceedBtn = document.querySelector('#modalOverlay .modal-footer .action-btn');
     if (proceedBtn) proceedBtn.disabled = _meterErrors.size > 0;
+
+    updateTotalCounter();
+}
+
+// общий счетчик равен базовому значению из 1С плюс все приросты по строкам
+function updateTotalCounter() {
+    const valueEl = document.getElementById('totalCounterValue');
+    if (!valueEl) return;
+
+    const base = Number(valueEl.dataset.base) || 0;
+    let added = 0;
+    document.querySelectorAll('#modalBody [data-drink-row] .meter-input').forEach(inp => {
+        const last = Number(inp.getAttribute('data-last')) || 0;
+        const val = Number(inp.value.trim()) || 0;
+        if (val > last) added += val - last;
+    });
+
+    valueEl.textContent = fmt(base + added);
+    const deltaEl = document.getElementById('totalCounterDelta');
+    if (deltaEl) deltaEl.textContent = added > 0 ? `+${fmt(added)}` : '';
 }
 
 function clearMeterFlowState() {
@@ -1478,6 +1597,7 @@ function renderStatus() {
     const box = document.getElementById('connectionStatus');
     if (!box) return;
     const queued = readQueue().length;
+    const failedCount = readFailed().length;
 
     let timeText = '';
     if (lastLoadedAt) {
@@ -1491,18 +1611,19 @@ function renderStatus() {
     const timeEl = box.querySelector('.status-time');
     if (timeEl) timeEl.textContent = timeText;
 
-    const stateKey = `${connectionOnline}|${queued}|${lastSyncError}|${isLoading ? 1 : 0}`;
+    const stateKey = `${connectionOnline}|${queued}|${failedCount}|${lastSyncError}|${isLoading ? 1 : 0}`;
     if (stateKey === _lastStatusKey) return;
     _lastStatusKey = stateKey;
 
     box.className = 'connection-status'
         + (connectionOnline === true ? ' online' : connectionOnline === false ? ' offline' : '')
-        + (queued ? ' has-queue' : '')
+        + ((queued || failedCount) ? ' has-queue' : '')
         + (isLoading ? ' syncing' : '');
 
     let text = connectionOnline === null ? 'Перевірка зв\'язку...'
         : connectionOnline ? '1С підключена' : 'Немає зв\'язку з 1С';
     if (queued) text += ` · Не відправлено: ${queued}`;
+    if (failedCount) text += ` · Відхилено: ${failedCount}`;
 
     const textEl = box.querySelector('.status-text');
     if (textEl) textEl.textContent = text;
@@ -1731,6 +1852,7 @@ async function autoRefreshTick() {
 
 async function manualRefresh() {
     if (isLoading) return;
+    if (readFailed().length) await reviewFailedQueue();
     const box = document.getElementById('connectionStatus');
     if (box) box.classList.add('syncing');
     retryAttempt = 0;

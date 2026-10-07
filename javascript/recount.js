@@ -5,6 +5,8 @@ let recountLoading = false;
 let recountSending = false;
 let recountItems = [];
 let recountPointId = null;
+// один идентификатор на открытое окно чтобы повторная отправка не создала дубль
+let recountRequestId = null;
 
 function ensureRecountModal() {
     let el = document.getElementById('recountOverlay');
@@ -44,6 +46,7 @@ function closeRecountModal() {
     if (recountSending) return;
     document.getElementById('recountOverlay')?.classList.remove('active');
     recountPointId = null;
+    recountRequestId = null;
     recountItems = [];
     if (typeof getTopModal === 'function' && !getTopModal() && typeof restoreFocus === 'function') {
         restoreFocus();
@@ -63,6 +66,7 @@ async function openRecountModal(pointId) {
     const sendBtn = document.getElementById('recountSendBtn');
 
     recountPointId = point.id;
+    recountRequestId = newRequestId();
     recountItems = [];
 
     const subParts = [point.point_name || 'Точка', `код ${point.id}`];
@@ -136,7 +140,7 @@ function renderRecountBody() {
                             </div>
                             <div class="assort-row-fields">
                                 <div>
-                                    <label>Учётное</label>
+                                    <label>Облікове</label>
                                     <div class="assort-field-static">${fmt(it.book)}</div>
                                 </div>
                                 <div>
@@ -285,7 +289,7 @@ async function submitRecount() {
     const payload = {
         point_id: pointId,
         technician_id: currentUser ? currentUser.id : '',
-        request_id: newRequestId(),
+        request_id: recountRequestId || newRequestId(),
         items
     };
 
@@ -356,4 +360,3 @@ async function submitRecount() {
         }
     }
 }
-

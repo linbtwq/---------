@@ -229,6 +229,8 @@
 
 .assort-pills {
     display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     gap: 6px;
     padding: 12px 20px 8px;
     margin: 0;
@@ -247,6 +249,23 @@
     background: var(--primary-soft);
     color: var(--primary);
 }
+
+.assort-pill.total {
+    background: var(--success-soft);
+    color: var(--success);
+}
+
+.assort-pill.total b {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.assort-pill .pill-delta {
+    margin-left: 2px;
+    font-weight: 700;
+}
+
+.assort-pill .pill-delta:empty { display: none; }
 
 .assort-grid { margin: 0; }
 
