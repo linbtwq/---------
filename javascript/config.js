@@ -2,7 +2,7 @@
 // здесь описаны базовые параметры работы интерфейса и связи с сервисом
 
 // исходный адрес http-сервиса 1С
-const _RAW_API_BASE = 'http://192.168.57.85/siteapi/hs/siteapi';
+const _RAW_API_BASE = 'http://192.168.57.85/siteapinew/hs/siteapinew';
 
 // на HTTPS-странице браузер блокирует http-запросы (mixed content),
 // поэтому автоматически повышаем протокол до https
