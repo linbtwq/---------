@@ -59,7 +59,7 @@ function updateDrawerUser() {
     if (currentUser) {
         const name = currentUser.name || 'Користувач';
         nameEl.textContent = name;
-        roleEl.textContent = currentUser.isAdmin ? 'Адміністратор' : 'Технік';
+        roleEl.textContent = currentUser.isAdmin ? 'Адміністратор' : (currentUser.role || '');
         avatarEl.textContent = name.trim().charAt(0).toUpperCase() || '?';
     } else {
         nameEl.textContent = '—';

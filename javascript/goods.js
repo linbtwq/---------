@@ -1,11 +1,12 @@
 
-
-const GOODS_MIN_QUERY = 2;
+const GOODS_MIN_QUERY = 1;
 
 let goodsRendered = false;
 let goodsCurrentParent = '';
 let goodsSearchSeq = 0;
 let goodsTimer = null;
+let goodsAbortController = null;
+const goodsSearchCache = new Map(); // кэш предыдущих поисковых фраз
 
 function goodsUrl(params) {
     const u = currentUser ? encodeURIComponent(currentUser.id) : '';
@@ -62,36 +63,35 @@ function initDrawerGoods() {
         <div id="goodsList"></div>
     `;
 
-host.querySelector('#goodsList').addEventListener('click', e => {
-    // копирование кода по клику
-    const chip = e.target.closest('.dg-code-chip');
-    if (chip) {
-        e.stopPropagation();
-        const code = chip.dataset.copy;
-        if (code && navigator.clipboard) {
-            navigator.clipboard.writeText(code).then(() => {
-                if (typeof showToast === 'function') showToast(`Код скопійовано: ${code}`);
-            }).catch(() => {});
-        }
-        return;
+    // привязываем поиск с дебаунсом
+    const searchInput = host.querySelector('#goodsSearch');
+    if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            clearTimeout(goodsTimer);
+            goodsTimer = setTimeout(goodsOnSearch, 250);
+        });
     }
 
-    if (e.target.closest('.dg-retry')) {
-        loadGoodsLevel(goodsCurrentParent);
-        return;
-    }
-    const row = e.target.closest('.dg-row');
-    if (!row) return;
-    if (row.dataset.type === 'folder') {
-        loadGoodsLevel(row.dataset.id);
-    }
-});
-
+    // обработка кликов по списку
     host.querySelector('#goodsList').addEventListener('click', e => {
+        // копирование кода по клику
+        const chip = e.target.closest('.dg-code-chip');
+        if (chip) {
+            e.stopPropagation();
+            const code = chip.dataset.copy;
+            if (code && navigator.clipboard) {
+                navigator.clipboard.writeText(code).then(() => {
+                    if (typeof showToast === 'function') showToast(`Код скопійовано: ${code}`);
+                }).catch(() => {});
+            }
+            return;
+        }
+
         if (e.target.closest('.dg-retry')) {
             loadGoodsLevel(goodsCurrentParent);
             return;
         }
+
         const row = e.target.closest('.dg-row');
         if (!row) return;
         if (row.dataset.type === 'folder') {
@@ -99,6 +99,7 @@ host.querySelector('#goodsList').addEventListener('click', e => {
         }
     });
 
+    // кнопка назад по папкам
     host.querySelector('#goodsNav').addEventListener('click', e => {
         const back = e.target.closest('.dg-back');
         if (!back) return;
@@ -214,7 +215,7 @@ function renderGoodsItems(items) {
     box.innerHTML = html;
 }
 
-// Пошук формує плаский список результатів
+// поиск по номенклатуре
 async function goodsOnSearch() {
     const input = document.getElementById('goodsSearch');
     const box = document.getElementById('goodsList');
@@ -226,21 +227,51 @@ async function goodsOnSearch() {
 
     if (q.length < GOODS_MIN_QUERY) {
         if (navBox) navBox.style.display = '';
+        if (goodsAbortController) goodsAbortController.abort();
         loadGoodsLevel(goodsCurrentParent);
         return;
     }
 
     if (navBox) navBox.style.display = 'none';
+
+    // мгновенная отдача из кэша, если эту строку уже искали
+    if (goodsSearchCache.has(q)) {
+        const cached = goodsSearchCache.get(q);
+        renderGoodsSearchResults(cached.items, cached.truncated);
+        return;
+    }
+
     box.innerHTML = goodsSkeleton;
 
+    // отменяем предыдущий незаконченный HTTP-запрос
+    if (goodsAbortController) {
+        goodsAbortController.abort();
+    }
+    goodsAbortController = new AbortController();
+
     try {
-        const data = await goodsFetch({ q });
+        const url = goodsUrl({ q });
+        const res = await fetch(url, {
+            method: 'GET',
+            cache: 'no-store',
+            signal: goodsAbortController.signal
+        });
+
+        if (!res.ok) {
+    const t = await res.text().catch(() => '');
+    throw new Error((t && t.slice(0, 300)) || ('HTTP ' + res.status));
+}
+        const data = await res.json();
+
         if (seq !== goodsSearchSeq) return;
 
         const items = Array.isArray(data.items) ? data.items : [];
+        goodsSearchCache.set(q, { items, truncated: !!data.truncated });
+
         renderGoodsSearchResults(items, !!data.truncated);
         goodsRendered = false;
     } catch (err) {
+        if (err.name === 'AbortError') return; // игнорируем штатную отмену
         if (seq !== goodsSearchSeq) return;
         box.innerHTML = goodsErrorHtml(err, false);
     }
@@ -255,16 +286,33 @@ function renderGoodsSearchResults(items, truncated) {
         return;
     }
 
-    const rows = items.map(it => `
-        <div class="dg-row dg-item" data-id="${escapeHtml(it.id)}" data-type="item">
-            <span class="dg-name">${escapeHtml(it.name)}</span>
-            <span class="dg-code">${escapeHtml(it.code || '')}</span>
-        </div>
-    `).join('');
+    const countHeader = `<div class="dg-section-label">Знайдено: ${items.length}${truncated ? '+' : ''}</div>`;
+
+    const rows = items.map(it => {
+        const rawName = String(it.name || '').trim();
+        const displayName = rawName.length ? rawName : 'Позиція без назви';
+        const rawCode = String(it.code || '').trim();
+        const cleanCode = rawCode.replace(/\s+/g, '');
+
+        return `
+            <div class="dg-row dg-item" data-id="${escapeHtml(it.id)}" data-type="item">
+                <div class="dg-item-icon">☕</div>
+                <div class="dg-item-info">
+                    <span class="dg-name${rawName ? '' : ' unnamed'}">${escapeHtml(displayName)}</span>
+                </div>
+                ${cleanCode ? `
+                    <button type="button" class="dg-code-chip" data-copy="${escapeHtml(cleanCode)}" title="Натисніть, щоб скопіювати">
+                        <span class="dg-code-prefix">код</span>
+                        <span class="dg-code-val">${escapeHtml(cleanCode)}</span>
+                    </button>
+                ` : ''}
+            </div>
+        `;
+    }).join('');
 
     const note = truncated
-        ? `<div class="dg-note">Показано перші ${items.length}. Уточніть пошук.</div>`
+        ? `<div class="dg-note" style="padding: 16px 12px; font-size: 0.8rem;">Показано перші ${items.length}. Уточніть запит для точного пошуку.</div>`
         : '';
 
-    box.innerHTML = rows + note;
+    box.innerHTML = countHeader + rows + note;
 }

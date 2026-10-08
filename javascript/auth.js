@@ -115,6 +115,11 @@ async function login() {
 // выход 
 function logout() {
 
+    
+    if (typeof goodsSearchCache !== 'undefined') {
+    goodsSearchCache.clear();
+}
+
     // если открыта боковая панель закрываем ее
 if (typeof closeDrawer === 'function') {
     try { closeDrawer(); } catch (e) {}
