@@ -22,6 +22,9 @@ const ASSETS = [
     './javascript/script.js',
     './javascript/assortments.js',
     './javascript/recount.js',
+    './javascript/notes.js',
+    './javascript/goods.js',
+    './javascript/drawer.js',
     './javascript/optimize.js'
 ];
 

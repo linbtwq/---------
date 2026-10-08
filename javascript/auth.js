@@ -1,6 +1,6 @@
 let currentUser = null;
 
-// ─── восстановление сессии ─────────────────────────────
+//  восстановление сессии 
 (function checkInitialAuth() {
     try {
         const saved = localStorage.getItem('currentUser');
@@ -14,7 +14,7 @@ let currentUser = null;
     }
 })();
 
-// ─── настройка экрана входа ────────────────────────────
+//  настройка экрана входа 
 document.addEventListener('DOMContentLoaded', () => {
     const authOverlay = document.getElementById('authOverlay');
     const pinInput = document.getElementById('pinInput');
@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// ─── вход ──────────────────────────────────────────────
+//  вход 
 async function login() {
     const pinInput = document.getElementById('pinInput');
     const errorMsg = document.getElementById('authError');
@@ -112,15 +112,21 @@ async function login() {
     }
 }
 
-// ─── выход ─────────────────────────────────────────────
+// выход 
 function logout() {
+
+    // если открыта боковая панель закрываем ее
+if (typeof closeDrawer === 'function') {
+    try { closeDrawer(); } catch (e) {}
+}
+
     document.querySelectorAll('.modal-overlay.active')
         .forEach(m => m.classList.remove('active'));
 
     localStorage.removeItem('currentUser');
     currentUser = null;
 
-    // Очищаем локальную базу данных, чтобы следующий пользователь
+    // очищаем локальную базу данных, чтобы следующий пользователь
     // не увидел чужие закешированные точки, ассортимент и долги
     if (typeof window.clearLocalDb === 'function') {
         try { window.clearLocalDb().catch(() => {}); } catch (e) {}
@@ -144,7 +150,7 @@ function logout() {
     if (typeof resetAppState === 'function') resetAppState();
 }
 
-// ─── шапка с пользователем ─────────────────────────────
+//шапка с пользователем
 function showUserInfo() {
     const userBadge = document.getElementById('userBadge');
     if (!userBadge || !currentUser) return;
@@ -160,4 +166,9 @@ function showUserInfo() {
     btn.addEventListener('click', logout);
 
     userBadge.replaceChildren(name, btn);
+
+    // обновляем данные пользователя в выезжающей панели
+    if (typeof updateDrawerUser === 'function') {
+        updateDrawerUser();
+    }
 }

@@ -522,16 +522,20 @@ function initClearCacheButton() {
                 await Promise.all(keys.map(k => caches.delete(k)));
             }
             await clearLocalDb();
+                const keepUser = localStorage.getItem('currentUser');
+                const keepDark = localStorage.getItem('darkMode');
+                const keepMode = localStorage.getItem('searchMode');
+                const keepFailed = localStorage.getItem(FAILED_KEY);
+                const keepLocks = localStorage.getItem('pointLocks'); 
 
-            const keepUser = localStorage.getItem('currentUser');
-            const keepDark = localStorage.getItem('darkMode');
-            const keepMode = localStorage.getItem('searchMode');
-            const keepFailed = localStorage.getItem(FAILED_KEY);
-            localStorage.clear();
-            if (keepUser) localStorage.setItem('currentUser', keepUser);
-            if (keepDark) localStorage.setItem('darkMode', keepDark);
-            if (keepMode) localStorage.setItem('searchMode', keepMode);
-            if (keepFailed) localStorage.setItem(FAILED_KEY, keepFailed);
+                localStorage.clear();
+
+                if (keepUser) localStorage.setItem('currentUser', keepUser);
+                if (keepDark) localStorage.setItem('darkMode', keepDark);
+                if (keepMode) localStorage.setItem('searchMode', keepMode);
+                if (keepFailed) localStorage.setItem(FAILED_KEY, keepFailed);
+                if (keepLocks) localStorage.setItem('pointLocks', keepLocks); 
+
         } catch (e) {
             console.warn('[clear cache]', e);
         }
@@ -646,7 +650,7 @@ function initEventListeners() {
             else if (action === 'stock') openStockModal(id);
             else if (action === 'shipment') openStub('Відвантаження на точку', id);
             else if (action === 'recount') openRecountModal(id);
-            else if (action === 'note') openStub('Примітка', id);
+            else if (action === 'note') openNoteModal(id);
         });
         results.addEventListener('scroll', updateBackToTop, { passive: true });
     }
@@ -1757,6 +1761,7 @@ function closeTopModal() {
     else if (m.id === 'assortOverlay') closeAssortModal();
     else if (m.id === 'stockOverlay') closeStockModal();
     else if (m.id === 'recountOverlay') closeRecountModal();
+    else if (m.id === 'noteOverlay') closeNoteModal();
 }
 
 let _focusBeforeModal = null;

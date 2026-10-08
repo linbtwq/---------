@@ -1,462 +1,518 @@
-/* все модальные окна, ассортимент, остатки, перерасчёт */
+/* ============================================================
+   css/modals.css
+   базові модальні вікна + асортимент + показники +
+   перерахунок + примітки + залишки
+   ============================================================ */
+
 
 /* ============================================================
-   модалки базовая
+   1. базове модальне вікно
    ============================================================ */
 
 .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
     display: flex;
     justify-content: center;
     align-items: center;
+    padding: 20px;
+    background: rgba(15, 23, 42, 0.45);
+    overflow-y: auto;
+    overscroll-behavior: contain;
     opacity: 0;
+    visibility: hidden;
     pointer-events: none;
-    transition: opacity 0.22s ease;
-    z-index: 1000;
+    transition: opacity 0.25s var(--ease), visibility 0s linear 0.25s;
 }
 
 .modal-overlay.active {
     opacity: 1;
+    visibility: visible;
     pointer-events: auto;
+    transition: opacity 0.25s var(--ease), visibility 0s;
 }
 
 .modal-box {
-    background: var(--surface);
+    position: relative;
     width: 100%;
     max-width: 480px;
-    border-radius: var(--r-lg);
-    box-shadow: var(--shadow-modal);
-    transform: translateY(20px) scale(0.96);
-    transition: transform 0.28s var(--ease-bounce);
-    overflow: hidden;
+    max-height: calc(100dvh - 40px);
     display: flex;
     flex-direction: column;
+    background: var(--surface-solid, #ffffff);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-modal);
+    overflow: hidden;
+    transform: translateY(14px);
+    transition: transform 0.25s var(--ease);
 }
 
 .modal-overlay.active .modal-box {
-    transform: none;
+    transform: translateY(0);
 }
 
+/* ширини конкретних модалок */
+.assort-box  { max-width: 640px; }
+.confirm-box { max-width: 420px; }
+.note-box    { max-width: 560px; }
+
+
+/* шапка модалки */
+
 .modal-header {
-    padding: 18px 20px 14px;
     display: flex;
-    justify-content: space-between;
     align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 18px 20px 14px;
     border-bottom: 1px solid var(--separator);
-    gap: 12px;
+    flex-shrink: 0;
 }
 
 .modal-header h3 {
-    font-size: 1.25rem;
-    font-weight: 700;
+    margin: 0;
     color: var(--text-heading);
-    line-height: 1.2;
+    font-size: 1.15rem;
+    font-weight: 700;
+    line-height: 1.3;
+    letter-spacing: -0.01em;
 }
 
 .modal-close {
-    background: var(--surface-2);
-    border: none;
-    font-size: 1.05rem;
-    color: var(--text-muted);
-    cursor: pointer;
+    flex: 0 0 32px;
     width: 32px;
     height: 32px;
-    flex: 0 0 32px;
     display: grid;
     place-items: center;
+    padding: 0;
+    border: none;
     border-radius: 50%;
-    transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+    background: var(--surface-2);
+    color: var(--text-muted);
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: background-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
 }
 
-.modal-close:hover {
-    background: var(--surface-3);
-    color: var(--text-heading);
+@media (hover: hover) and (pointer: fine) {
+    .modal-close:hover {
+        background: var(--surface-3);
+        color: var(--text-heading);
+    }
 }
 
-.modal-close:active {
-    transform: scale(0.9);
+.modal-close:active { transform: scale(0.92); }
+.modal-close:disabled { opacity: 0.5; cursor: not-allowed; }
+.modal-close:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
 }
+
+
+/* тіло та підвал */
 
 .modal-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
     padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
+    overscroll-behavior: contain;
 }
 
 .modal-footer {
-    padding: 14px 20px;
-    background: var(--surface);
-    border-top: 1px solid var(--separator);
     display: flex;
     justify-content: flex-end;
+    gap: 10px;
+    padding: 14px 20px;
+    border-top: 1px solid var(--separator);
+    background: var(--surface-solid, #ffffff);
+    flex-shrink: 0;
 }
 
-.meter-input-group input {
-    width: 100%;
-    padding: 10px 14px;
-    border: 1px solid var(--border);
-    border-radius: var(--r-sm);
-    font-size: 1rem;
-    outline: none;
-    background: var(--surface-2);
-    color: var(--text-heading);
-    transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
 
-.meter-input-group input:focus {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px var(--primary-soft);
-}
+/* заголовок асортименту всередині шапки */
 
-/* ============================================================
-   подтверждение
-   ============================================================ */
-
-.confirm-box { max-width: 360px; }
-
-.confirm-summary {
-    background: var(--surface-2);
-    padding: 18px;
-    border-radius: var(--r);
+.assort-head {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 4px;
+    min-width: 0;
+    flex: 1;
+}
+
+.assort-sub {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+
+/* ============================================================
+   2. спільні блоки підтвердження
+   ============================================================ */
+
+.confirm-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    background: var(--surface-2);
 }
 
 .confirm-item {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    font-size: 1.05rem;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 0.95rem;
 }
 
-#paymentAmount {
-    font-size: 1.15rem;
-    font-weight: 700;
+.confirm-item span { color: var(--text-muted); }
+
+.confirm-dialog-details {
+    margin-top: 12px;
+    padding: 10px 14px;
+    border-radius: var(--r-sm);
+    background: var(--surface-2);
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    line-height: 1.45;
 }
+
+.confirm-dialog-details ul {
+    margin: 0;
+    padding-left: 18px;
+}
+
 
 /* ============================================================
-   ассортимент
+   3. асортимент / показники
    ============================================================ */
 
-.assort-box {
-    max-width: 440px;
-    max-height: 88dvh;
-    background: var(--surface);
-}
-
-.assort-box .modal-header {
-    padding: 16px 20px 14px;
-    align-items: flex-start;
-}
-
-.assort-head {
-    flex: 1;
-    min-width: 0;
-}
-
-.assort-head h3 {
-    margin: 0;
-    color: var(--text-heading);
-    font-size: 1.25rem;
-    font-weight: 700;
-    line-height: 1.2;
-}
-
-.assort-sub {
-    margin-top: 3px;
-    color: var(--text-muted);
-    font-size: 0.8rem;
-    line-height: 1.3;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.assort-box .modal-body {
-    padding: 0;
-    min-height: 0;
+.assort-panel {
     display: flex;
     flex-direction: column;
-    overflow-y: auto;
-    background: var(--surface);
-    overscroll-behavior: contain;
 }
+
+.assort-pills {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.assort-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.assort-pill.price {
+    color: var(--primary);
+    background: var(--primary-soft);
+    border-color: transparent;
+}
+
+.assort-pill.total {
+    color: var(--success);
+    background: var(--success-soft);
+    border-color: transparent;
+}
+
+.assort-pill.total b {
+    color: var(--success);
+    font-weight: 700;
+}
+
+.pill-delta {
+    color: var(--success);
+    font-size: 0.72rem;
+    font-weight: 700;
+    margin-left: 2px;
+}
+
+
+/* пошук у асортименті */
 
 .assort-top {
-    position: sticky;
-    top: 0;
-    z-index: 5;
-    padding: 10px 20px 12px;
-    background: var(--surface);
-    border-bottom: 1px solid var(--separator);
+    margin-bottom: 12px;
 }
 
-.assort-search-wrap { padding: 0; }
+.assort-search-wrap {
+    position: relative;
+}
 
 .assort-search {
     width: 100%;
-    min-height: 36px;
-    padding: 8px 12px;
+    min-height: 44px;
+    padding: 8px 14px;
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: var(--r);
     background: var(--surface-2);
     color: var(--text-heading);
-    font-size: 0.92rem;
+    font-size: 16px;
     outline: none;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
+
+.assort-search::placeholder { color: var(--text-muted); }
 
 .assort-search:focus {
     border-color: var(--primary);
     box-shadow: 0 0 0 3px var(--primary-soft);
 }
 
+
+/* офлайн-плашка */
+
 .assort-offline {
-    margin: 10px 20px 0;
-    padding: 8px 12px;
-    border-radius: 10px;
+    margin-bottom: 12px;
+    padding: 10px 14px;
+    border-radius: var(--r);
     background: var(--warning-soft);
     color: var(--warning-text);
-    font-size: 0.78rem;
-    line-height: 1.35;
+    font-size: 0.82rem;
+    line-height: 1.4;
+    font-weight: 500;
 }
 
-.assort-panel { padding: 0; }
 
-.assort-pills {
+/* сітка рядків */
+
+.assort-grid {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-    padding: 12px 20px 8px;
-    margin: 0;
+    flex-direction: column;
+    gap: 10px;
 }
-
-.assort-pill {
-    padding: 3px 9px;
-    border-radius: 999px;
-    background: var(--surface-2);
-    color: var(--text-muted);
-    font-size: 0.72rem;
-    font-weight: 600;
-}
-
-.assort-pill.price {
-    background: var(--primary-soft);
-    color: var(--primary);
-}
-
-.assort-pill.total {
-    background: var(--success-soft);
-    color: var(--success);
-}
-
-.assort-pill.total b {
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-}
-
-.assort-pill .pill-delta {
-    margin-left: 2px;
-    font-weight: 700;
-}
-
-.assort-pill .pill-delta:empty { display: none; }
-
-.assort-grid { margin: 0; }
 
 .assort-row {
-    display: block;
-    padding: 14px 20px;
-    border-bottom: 1px solid var(--separator);
-    background: transparent;
-    transition: background-color 0.15s ease;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    background: var(--surface);
+    transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
-.assort-row:last-child { border-bottom: none; }
-
-@media (hover: hover) and (pointer: fine) {
-    .assort-row:hover {
-        background: rgba(120, 120, 128, 0.04);
-    }
-    body.dark-theme .assort-row:hover {
-        background: rgba(120, 120, 128, 0.08);
-    }
+.assort-row.picked {
+    border-color: var(--primary);
+    background: var(--primary-soft);
 }
 
 .assort-row-head {
     display: flex;
     justify-content: space-between;
-    align-items: baseline;
-    gap: 12px;
-    margin-bottom: 6px;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 12px;
 }
 
 .assort-tile-name {
-    color: var(--text-heading);
     font-size: 0.95rem;
-    font-weight: 600;
+    font-weight: 700;
+    color: var(--text-heading);
     line-height: 1.3;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    flex: 1;
-    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .assort-row-price {
-    flex: 0 0 auto;
+    font-size: 0.78rem;
     color: var(--text-muted);
-    font-size: 0.82rem;
     white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.assort-row-price strong {
+    color: var(--text-heading);
+    font-weight: 700;
 }
 
 .assort-row-fields {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(140px, auto) minmax(0, 1fr);
     gap: 12px;
-    margin-top: 8px;
+    align-items: start;
 }
 
-.assort-row-fields > div { min-width: 0; }
+.assort-row-fields > div {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
 
-.assort-row-fields > div > label {
-    display: block;
-    margin-bottom: 2px;
-    color: var(--text-muted);
-    font-size: 0.68rem;
-    font-weight: 500;
+.assort-row-fields label {
+    font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.03em;
+    color: var(--text-muted);
+    font-weight: 600;
 }
 
 .assort-field-static {
-    padding: 0;
-    color: var(--text);
-    font-size: 0.92rem;
-    font-weight: 500;
-}
-
-.assort-row-total {
-    padding: 0;
-    color: var(--success);
-    font-size: 1rem;
-    font-weight: 700;
-    white-space: nowrap;
-}
-
-/* степпер */
-.qty {
-    display: inline-flex;
-    align-items: stretch;
-    gap: 0;
-    min-width: 0;
-    border-radius: 9px;
-    overflow: hidden;
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 12px;
+    border-radius: 10px;
     background: var(--surface-2);
-}
-
-.qty-btn {
-    flex: 0 0 36px;
-    width: 36px;
-    height: 36px;
-    display: grid;
-    place-items: center;
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    color: var(--text-heading);
-    font-size: 1.15rem;
-    cursor: pointer;
-    touch-action: manipulation;
-    transition: background-color 0.1s ease, transform 0.1s ease;
-}
-
-.qty-btn:active {
-    background: var(--surface-3);
-    transform: scale(0.94);
-}
-
-.qty .qty-input,
-.qty .meter-input {
-    flex: 0 0 auto;
-    width: 46px;
-    min-width: 46px;
-    height: 36px;
-    margin: 0;
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: var(--surface);
-    color: var(--text-heading);
-    font-size: 0.95rem;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
     font-weight: 600;
-    text-align: center;
-    outline: none;
-    transition: box-shadow 0.15s ease;
-}
-
-.qty .qty-input:focus,
-.qty .meter-input:focus {
-    box-shadow: inset 0 0 0 2px var(--primary);
-}
-
-.qty .meter-input.error,
-.qty .meter-input.error:focus {
-    background: var(--danger-soft);
-    color: var(--danger);
-    box-shadow: inset 0 0 0 2px var(--danger);
-}
-
-body.dark-theme .qty .meter-input.error {
-    background: #450a0a;
-}
-
-#assortNoMatch {
-    margin: 0;
-    padding: 28px 20px;
-    border: 0;
-    background: transparent;
     font-size: 0.9rem;
 }
 
-.assort-error {
-    margin: 20px;
-    padding: 12px 14px;
+.assort-row-total {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 12px;
+    color: var(--text-heading);
+    font-weight: 700;
+    font-size: 0.95rem;
+}
+
+
+/* ============================================================
+   4. qty-контрол (+/- та інпут)
+   ============================================================ */
+
+.qty {
+    display: flex;
+    align-items: stretch;
+    gap: 4px;
+}
+
+.qty-btn {
+    flex: 0 0 40px;
+    width: 40px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 1px solid var(--border);
     border-radius: 10px;
+    background: var(--surface-2);
+    color: var(--text-heading);
+    font-size: 1.3rem;
+    font-weight: 500;
+    line-height: 1;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .qty-btn:hover { background: var(--surface-3); }
+}
+
+.qty-btn:active { transform: scale(0.94); }
+.qty-btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+.qty-input,
+.meter-input {
+    flex: 1 1 50px;
+    min-width: 50px;
+    height: 44px;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--text-heading);
+    text-align: center;
+    font-size: 16px;
+    font-weight: 700;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.qty-input:focus,
+.meter-input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+.meter-input.error {
+    border-color: var(--danger) !important;
+    background: var(--danger-soft);
+}
+
+body.dark-theme .meter-input.error {
+    background: #450a0a;
+}
+
+.meter-input-group input {
+    width: 100%;
+}
+
+.meter-input-group > label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+
+.row-total {
+    font-weight: 700;
+    color: var(--text-heading);
+}
+
+
+/* ============================================================
+   5. завантаження / помилки всередині модалок
+   ============================================================ */
+
+.assort-loading {
+    padding: 8px 0;
+}
+
+.assort-error {
+    margin: 8px 0;
+    padding: 12px 14px;
+    border-radius: var(--r);
     background: var(--danger-soft);
     color: var(--danger);
-    font-size: 0.85rem;
+    font-size: 0.88rem;
     line-height: 1.4;
 }
 
-.assort-loading {
-    padding: 24px 20px;
-}
 
-.assort-box .order-footer {
-    min-height: 64px;
-    display: flex;
-    align-items: center;
+/* ============================================================
+   6. підвал замовлення (асортимент / перерахунок / примітка)
+   ============================================================ */
+
+.order-footer {
     justify-content: space-between;
-    gap: 10px;
-    padding: 12px 20px;
-    background: var(--surface);
-    border-top: 1px solid var(--separator);
+    align-items: center;
 }
 
 .order-summary {
     flex: 1;
     min-width: 0;
     color: var(--text-muted);
-    font-size: 0.82rem;
-    line-height: 1.35;
+    font-size: 0.85rem;
+    line-height: 1.3;
 }
 
 .order-summary b {
@@ -464,46 +520,224 @@ body.dark-theme .qty .meter-input.error {
     font-weight: 700;
 }
 
-.assort-box .order-footer .action-btn {
-    min-height: 40px;
-    padding: 9px 20px;
+
+/* ============================================================
+   7. перерахунок
+   ============================================================ */
+
+.recount-deviation {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 12px;
     border-radius: 10px;
-    white-space: nowrap;
-    font-size: 0.9rem;
-}
-
-.assort-box .order-footer .btn-success {
-    background: var(--primary);
-}
-
-.assort-box .order-footer .action-btn:disabled {
     background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 0.88rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.recount-deviation.positive {
+    color: var(--success);
+    background: var(--success-soft);
+    border-color: transparent;
+}
+
+.recount-deviation.negative {
+    color: var(--danger);
+    background: var(--danger-soft);
+    border-color: transparent;
+}
+
+.recount-deviation.zero {
     color: var(--text-muted);
 }
 
-.btn-danger { background: var(--danger); }
-
-@media (hover: hover) and (pointer: fine) {
-    .btn-danger:not(:disabled):hover {
-        box-shadow: 0 6px 14px rgba(255, 59, 48, 0.3);
-    }
-}
 
 /* ============================================================
-   остатки
+   8. примітки
+   ============================================================ */
+
+.note-new {
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    background: var(--surface-2);
+    margin-bottom: 16px;
+}
+
+.note-text {
+    width: 100%;
+    min-height: 76px;
+    resize: vertical;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--text-heading);
+    font: inherit;
+    font-size: 0.95rem;
+    line-height: 1.4;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.note-text::placeholder { color: var(--text-muted); }
+
+.note-text:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+.note-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-top: 6px;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
+.note-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.note-chip {
+    min-height: 32px;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.1;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: background-color 0.15s ease, color 0.15s ease,
+                border-color 0.15s ease;
+}
+
+.note-chip.active {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+}
+
+.note-chip:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+.note-history {
+    margin-top: 8px;
+}
+
+.note-history-title {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-muted);
+    font-weight: 700;
+    padding-bottom: 8px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--separator);
+}
+
+.note-item {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--separator);
+}
+
+.note-item:last-child {
+    border-bottom: none;
+}
+
+.note-item-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 6px;
+}
+
+.note-item-head b {
+    color: var(--text-heading);
+    font-size: 0.88rem;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.note-item-head span {
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.note-item-text {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    color: var(--text);
+    font-size: 0.9rem;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+
+.note-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 1.2;
+    background: var(--surface-3);
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.note-tag.access  { background: var(--primary-soft); color: var(--primary); }
+.note-tag.service { background: var(--warning-soft); color: var(--warning-text); }
+.note-tag.broken  { background: var(--danger-soft);  color: var(--danger); }
+.note-tag.other   { background: var(--surface-3);    color: var(--text-muted); }
+
+.note-empty {
+    padding: 24px 12px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.88rem;
+}
+
+
+/* ============================================================
+   9. залишки
    ============================================================ */
 
 .stock-list {
-    margin: 0;
-    padding: 0;
+    display: flex;
+    flex-direction: column;
+    margin-top: 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    background: var(--surface);
+    overflow: hidden;
 }
 
 .stock-row {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    justify-content: space-between;
     gap: 12px;
-    padding: 14px 20px;
+    padding: 12px 16px;
     border-bottom: 1px solid var(--separator);
 }
 
@@ -513,86 +747,62 @@ body.dark-theme .qty .meter-input.error {
     flex: 1;
     min-width: 0;
     color: var(--text-heading);
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     font-weight: 500;
-    line-height: 1.3;
     overflow-wrap: anywhere;
 }
 
 .stock-qty {
-    flex: 0 0 auto;
-    font-size: 1rem;
-    font-weight: 700;
+    flex-shrink: 0;
+    min-width: 48px;
     padding: 4px 12px;
     border-radius: 999px;
-    min-width: 56px;
-    text-align: center;
-}
-
-.stock-qty.ok   { color: var(--success); background: var(--success-soft); }
-.stock-qty.low  { color: #b45309;       background: var(--warning-soft); }
-.stock-qty.zero { color: var(--danger); background: var(--danger-soft); }
-
-body.dark-theme .stock-qty.ok   { background: #1a3d24; color: #6ee7b7; }
-body.dark-theme .stock-qty.low  { background: #3d2b00; color: #fcd34d; }
-body.dark-theme .stock-qty.zero { background: #450a0a; color: #fca5a5; }
-
-/* ============================================================
-   перерасчет
-   ============================================================ */
-
-.recount-deviation {
-    padding: 0;
-    font-size: 0.95rem;
-    font-weight: 700;
-    line-height: 1.3;
-    text-align: right;
-    color: var(--text-muted);
-    overflow-wrap: anywhere;
-}
-
-.recount-deviation.positive { color: var(--success); }
-.recount-deviation.negative { color: var(--danger); }
-
-/* ============================================================
-   кастомный confirm-dialog
-   ============================================================ */
-
-.confirm-dialog-details {
-    background: var(--surface-2);
-    border-radius: var(--r);
-    padding: 12px 16px;
     font-size: 0.88rem;
-    color: var(--text);
-    line-height: 1.55;
-}
-
-.confirm-dialog-details ul {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-}
-
-.confirm-dialog-details li {
-    position: relative;
-    padding-left: 16px;
-    margin: 4px 0;
-}
-
-.confirm-dialog-details li::before {
-    content: '•';
-    position: absolute;
-    left: 4px;
-    color: var(--text-muted);
     font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    background: var(--surface-2);
+    color: var(--text-muted);
 }
 
-#confirmDialogOverlay .modal-close {
+.stock-qty.ok   { background: var(--success-soft); color: var(--success); }
+.stock-qty.low  { background: var(--warning-soft); color: var(--warning-text); }
+.stock-qty.zero { background: var(--danger-soft);  color: var(--danger); }
+
+
+/* ============================================================
+   10. підказка "менше попереднього"
+   ============================================================ */
+
+.error-hint {
     display: none;
+    font-size: 0.75rem;
+    color: var(--danger);
+    font-weight: 500;
+    line-height: 1.3;
 }
 
-@media (hover: hover) and (pointer: fine) {
-    #confirmDialogOverlay .modal-close {
-        display: grid;
+.error-hint.show { display: block; }
+
+
+/* ============================================================
+   11. оптимізації
+   ============================================================ */
+
+.low-end .modal-overlay,
+.low-end .modal-box,
+.low-end .qty-btn,
+.low-end .assort-row,
+.low-end .note-chip {
+    transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .modal-overlay,
+    .modal-box,
+    .qty-btn,
+    .assort-row,
+    .note-chip {
+        transition: none;
     }
 }
