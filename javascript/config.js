@@ -4,17 +4,10 @@
 // исходный адрес http-сервиса 1С
 const _RAW_API_BASE = 'http://192.168.57.85/siteapinew/hs/siteapi';
 
-// на HTTPS-странице браузер блокирует http-запросы (mixed content),
-// поэтому автоматически повышаем протокол до https
-const _IS_HTTPS_PAGE = (typeof location !== 'undefined' && location.protocol === 'https:');
-const _API_BASE = _IS_HTTPS_PAGE
-    ? _RAW_API_BASE.replace(/^http:/i, 'https:')
-    : _RAW_API_BASE;
-
 const APP_CONFIG = {
     // адрес http сервиса 1с
     // лишний слэш в конце будет автоматически убран в script.js
-    apiBase: _API_BASE,
+    apiBase: _RAW_API_BASE,
     apiVersion: '1.0',
 
     // таймауты запросов в миллисекундах
