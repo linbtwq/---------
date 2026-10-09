@@ -833,3 +833,6 @@ body.dark-theme .dg-code-chip {
     font-size: 0.88rem;
     text-align: center;
 }
+
+.dg-item-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dg-price { font-size: 0.8rem; font-weight: 600; color: #16a34a; }

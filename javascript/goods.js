@@ -1,4 +1,3 @@
-
 const GOODS_MIN_QUERY = 1;
 
 let goodsRendered = false;
@@ -36,6 +35,38 @@ const goodsSkeleton = `
         <div class="skeleton skeleton-text" style="width:55%;"></div>
     </div>
 `;
+
+// цена товара: "45,00 ₴"; если цены нет, ничего не показываем
+function goodsPriceHtml(it) {
+    const p = Number(it.price);
+    if (!p || p <= 0) return '';
+    const txt = p.toLocaleString('uk-UA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return `<span class="dg-price">${escapeHtml(txt)} ₴</span>`;
+}
+
+// одна строка товара (общая для дерева и для поиска)
+function goodsItemHtml(it) {
+    const rawName = String(it.name || '').trim();
+    const displayName = rawName.length ? rawName : 'Позиція без назви';
+    const rawCode = String(it.code || '').trim();
+    const cleanCode = rawCode.replace(/\s+/g, '');
+
+    return `
+        <div class="dg-row dg-item" data-id="${escapeHtml(it.id)}" data-type="item">
+            <div class="dg-item-icon">☕</div>
+            <div class="dg-item-info">
+                <span class="dg-name${rawName ? '' : ' unnamed'}">${escapeHtml(displayName)}</span>
+                ${goodsPriceHtml(it)}
+            </div>
+            ${cleanCode ? `
+                <button type="button" class="dg-code-chip" data-copy="${escapeHtml(cleanCode)}" title="Натисніть, щоб скопіювати">
+                    <span class="dg-code-prefix">код</span>
+                    <span class="dg-code-val">${escapeHtml(cleanCode)}</span>
+                </button>
+            ` : ''}
+        </div>
+    `;
+}
 
 function goodsErrorHtml(err, withRetry) {
     const message = err && err.message ? err.message : String(err);
@@ -138,7 +169,7 @@ async function loadGoodsLevel(parentId) {
     }
 }
 
-// назад 
+// назад
 function renderGoodsNav(breadcrumb) {
     const navBox = document.getElementById('goodsNav');
     if (!navBox) return;
@@ -189,27 +220,7 @@ function renderGoodsItems(items) {
         if (folders.length) {
             html += `<div class="dg-section-label" style="margin-top: 14px;">Товари (${products.length})</div>`;
         }
-        html += products.map(it => {
-            const rawName = String(it.name || '').trim();
-            const displayName = rawName.length ? rawName : 'Позиція без назви';
-            const rawCode = String(it.code || '').trim();
-            const cleanCode = rawCode.replace(/\s+/g, '');
-
-            return `
-                <div class="dg-row dg-item" data-id="${escapeHtml(it.id)}" data-type="item">
-                    <div class="dg-item-icon">☕</div>
-                    <div class="dg-item-info">
-                        <span class="dg-name${rawName ? '' : ' unnamed'}">${escapeHtml(displayName)}</span>
-                    </div>
-                    ${cleanCode ? `
-                        <button type="button" class="dg-code-chip" data-copy="${escapeHtml(cleanCode)}" title="Натисніть, щоб скопіювати">
-                            <span class="dg-code-prefix">код</span>
-                            <span class="dg-code-val">${escapeHtml(cleanCode)}</span>
-                        </button>
-                    ` : ''}
-                </div>
-            `;
-        }).join('');
+        html += products.map(goodsItemHtml).join('');
     }
 
     box.innerHTML = html;
@@ -258,9 +269,9 @@ async function goodsOnSearch() {
         });
 
         if (!res.ok) {
-    const t = await res.text().catch(() => '');
-    throw new Error((t && t.slice(0, 300)) || ('HTTP ' + res.status));
-}
+            const t = await res.text().catch(() => '');
+            throw new Error((t && t.slice(0, 300)) || ('HTTP ' + res.status));
+        }
         const data = await res.json();
 
         if (seq !== goodsSearchSeq) return;
@@ -287,28 +298,7 @@ function renderGoodsSearchResults(items, truncated) {
     }
 
     const countHeader = `<div class="dg-section-label">Знайдено: ${items.length}${truncated ? '+' : ''}</div>`;
-
-    const rows = items.map(it => {
-        const rawName = String(it.name || '').trim();
-        const displayName = rawName.length ? rawName : 'Позиція без назви';
-        const rawCode = String(it.code || '').trim();
-        const cleanCode = rawCode.replace(/\s+/g, '');
-
-        return `
-            <div class="dg-row dg-item" data-id="${escapeHtml(it.id)}" data-type="item">
-                <div class="dg-item-icon">☕</div>
-                <div class="dg-item-info">
-                    <span class="dg-name${rawName ? '' : ' unnamed'}">${escapeHtml(displayName)}</span>
-                </div>
-                ${cleanCode ? `
-                    <button type="button" class="dg-code-chip" data-copy="${escapeHtml(cleanCode)}" title="Натисніть, щоб скопіювати">
-                        <span class="dg-code-prefix">код</span>
-                        <span class="dg-code-val">${escapeHtml(cleanCode)}</span>
-                    </button>
-                ` : ''}
-            </div>
-        `;
-    }).join('');
+    const rows = items.map(goodsItemHtml).join('');
 
     const note = truncated
         ? `<div class="dg-note" style="padding: 16px 12px; font-size: 0.8rem;">Показано перші ${items.length}. Уточніть запит для точного пошуку.</div>`
