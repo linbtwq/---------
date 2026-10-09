@@ -389,12 +389,19 @@ function initTheme() {
     if (isDarkMode) document.body.classList.add('dark-theme');
     const themeBtn = document.getElementById('themeToggle');
     if (themeBtn) {
-        themeBtn.textContent = isDarkMode ? '☀️' : '🌙';
+        const setThemeIcon = (isDark) => {
+            const path = isDark
+                ? '<path d="M20.9 13A9 9 0 0 1 11 3.1 9 9 0 1 0 20.9 13Z"/>'
+                : '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/>';
+            themeBtn.setAttribute('aria-label', isDark ? 'Увімкнути світлу тему' : 'Увімкнути темну тему');
+            themeBtn.innerHTML = `<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
+        };
+        setThemeIcon(isDarkMode);
         themeBtn.addEventListener('click', () => {
             document.body.classList.toggle('dark-theme');
             const isDark = document.body.classList.contains('dark-theme');
             localStorage.setItem('darkMode', isDark);
-            themeBtn.textContent = isDark ? '☀️' : '🌙';
+            setThemeIcon(isDark);
         });
     }
 }
@@ -949,6 +956,19 @@ function filterPoints(query, mode = searchMode) {
     return results;
 }
 
+function actionIconMarkup(action) {
+    const paths = {
+        open: '<path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
+        assort: '<path d="m12 3 8.5 4.25L12 11.5 3.5 7.25 12 3Z"/><path d="M3.5 7.25v9.5L12 21l8.5-4.25v-9.5"/><path d="M12 11.5V21"/>',
+        pay: '<rect x="3" y="6" width="18" height="15" rx="2"/><path d="M3 9V5a2 2 0 0 1 2-2h14"/><path d="M16 14h5"/><circle cx="16" cy="14" r=".7"/>',
+        stock: '<rect x="4" y="4" width="16" height="17" rx="2"/><path d="M9 4.5V3h6v1.5M8 10h8M8 14h8M8 18h5"/>',
+        shipment: '<path d="M3 6h11v12H3z"/><path d="M14 10h4l3 3v5h-7z"/><circle cx="7.5" cy="19" r="1.5"/><circle cx="17.5" cy="19" r="1.5"/>',
+        recount: '<path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.6 9A7 7 0 0 1 18 6l2 6M18.4 15A7 7 0 0 1 6 18l-2-6"/>',
+        note: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/>'
+    };
+    return `<svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[action] || ''}</svg>`;
+}
+
 // карточка точки
 function cardHtml(item, idx) {
     const lockSnap = _lockSnapshot[String(item.id)] || { meter: null, order: null };
@@ -998,7 +1018,7 @@ function cardHtml(item, idx) {
             <div class="point-header">
                 <div>
                     <span class="point-title">${escapeHtml(item.point_name) || 'Без назви'}</span>
-                    <span class="point-code" style="margin-left: 10px;">Код: ${id}</span>
+                    <span class="point-code">Код: ${id}</span>
                 </div>
                 ${badges.join('')}
             </div>
@@ -1012,13 +1032,13 @@ function cardHtml(item, idx) {
             </div>
 
             <div class="card-actions">
-                <button class="action-btn" data-action="open" data-id="${id}" ${meterBlocked ? 'disabled' : ''}>Показники</button>
-                <button class="action-btn" data-action="assort" data-id="${id}">Поповнення</button>
-                <button class="action-btn btn-success" data-action="pay" data-id="${id}" ${debt > 0 ? '' : 'disabled'}>ПКО (готівка)</button>
-                <button class="action-btn" data-action="stock" data-id="${id}">Залишки</button>
-                <button class="action-btn" data-action="shipment" data-id="${id}">Відвантаження</button>
-                <button class="action-btn" data-action="recount" data-id="${id}">Перерахунок</button>
-                <button class="action-btn" data-action="note" data-id="${id}">Примітка</button>
+                <button class="action-btn" data-action="open" data-id="${id}" ${meterBlocked ? 'disabled' : ''}>${actionIconMarkup('open')}<span>Показники</span></button>
+                <button class="action-btn" data-action="assort" data-id="${id}">${actionIconMarkup('assort')}<span>Поповнення</span></button>
+                <button class="action-btn btn-success" data-action="pay" data-id="${id}" ${debt > 0 ? '' : 'disabled'}>${actionIconMarkup('pay')}<span>ПКО (готівка)</span></button>
+                <button class="action-btn" data-action="stock" data-id="${id}">${actionIconMarkup('stock')}<span>Залишки</span></button>
+                <button class="action-btn" data-action="shipment" data-id="${id}">${actionIconMarkup('shipment')}<span>Відвантаження</span></button>
+                <button class="action-btn" data-action="recount" data-id="${id}">${actionIconMarkup('recount')}<span>Перерахунок</span></button>
+                <button class="action-btn" data-action="note" data-id="${id}">${actionIconMarkup('note')}<span>Примітка</span></button>
             </div>
 
             ${notes}
@@ -1893,7 +1913,6 @@ function ensureStockModal() {
             </div>
             <div class="modal-body" id="stockBody"></div>
             <div class="modal-footer">
-                <button class="action-btn btn-secondary" type="button" id="stockCloseBtn">Закрити</button>
             </div>
         </div>
     `;

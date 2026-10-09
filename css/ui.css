@@ -367,35 +367,33 @@ body.dark-theme { --surface-solid: #111419; }
 
 .drawer-handle {
     position: fixed;
-    left: env(safe-area-inset-left, 0px);
-    top: 50%;
-    transform: translateY(-50%);
+    left: max(16px, env(safe-area-inset-left, 0px));
+    top: max(12px, env(safe-area-inset-top, 0px));
     z-index: 950;
-    width: 20px;
-    height: 72px;
+    width: 44px;
+    height: 44px;
     padding: 0;
     display: grid;
     place-items: center;
     border: 1px solid var(--border);
-    border-left: none;
-    border-radius: 0 12px 12px 0;
+    border-radius: 50%;
     background: var(--surface);
     color: var(--text-muted);
-    font-size: 1.05rem;
+    font-size: 0;
     line-height: 1;
     cursor: pointer;
     touch-action: manipulation;
-    transition: opacity 0.2s ease, color 0.15s ease;
+    transition: opacity 0.2s ease, background-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-/* невидимая зона вокруг язычка чтобы в него было легче попасть пальцем */
 .drawer-handle::after {
     content: '';
     position: absolute;
-    inset: -10px -16px -10px 0;
+    inset: -8px;
 }
 
 @media (hover: hover) and (pointer: fine) {
+    .drawer-handle:hover { background: var(--surface-2); }
     .drawer-handle:hover { color: var(--primary); }
 }
 
@@ -578,11 +576,35 @@ body.drawer-open .drawer-handle {
 }
 
 .drawer-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
     padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
     border-top: 1px solid var(--separator);
     color: var(--text-muted);
     font-family: ui-monospace, monospace;
     font-size: 0.72rem;
+}
+
+.drawer-logout {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    padding: 8px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    background: var(--surface-2);
+    color: var(--text-heading);
+    font-size: 0.84rem;
+    font-weight: 650;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.drawer-version {
+    margin-left: auto;
+    font-family: ui-monospace, monospace;
 }
 
 .low-end .app-drawer,
@@ -725,9 +747,11 @@ body.drawer-open .drawer-handle {
     display: grid;
     place-items: center;
     border-radius: 8px;
-    background: rgba(255, 193, 7, 0.15);
-    font-size: 1.05rem;
+    background: var(--primary-soft);
+    color: var(--primary);
 }
+
+.dg-icon-svg { width: 17px; height: 17px; }
 
 .dg-folder .dg-name {
     font-weight: 600;
@@ -757,9 +781,8 @@ body.drawer-open .drawer-handle {
     display: grid;
     place-items: center;
     border-radius: 7px;
-    background: var(--surface-2);
-    font-size: 0.9rem;
-    opacity: 0.85;
+    background: var(--accent-soft);
+    color: var(--accent);
 }
 
 .dg-item-info {

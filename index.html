@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#007aff">
+    <meta name="theme-color" content="#0f7a63">
     <title>1с база</title>
     <link rel="icon" href="data:,">
     <script>
@@ -37,6 +37,7 @@
 </script>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="css/mobile.css">
+    <link rel="stylesheet" href="css/theme.css">
     <link rel="manifest" href="manifest.json">
 </head>
 <body>
@@ -54,14 +55,14 @@
         </div>
     </div>
 
-    <button id="themeToggle" class="theme-toggle" aria-label="Тема">🌙</button>
-    <button id="clearCacheBtn" class="cache-toggle" title="Очистити кеш" aria-label="Очистити кеш">🗑️</button>
+    <button id="themeToggle" class="theme-toggle" aria-label="Увімкнути темну тему"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg></button>
+    <button id="clearCacheBtn" class="cache-toggle" title="Очистити кеш" aria-label="Очистити кеш"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6m4-6v6M5 7l1 14h12l1-14M9 7V4h6v3"/></svg></button>
 
 
     <div class="app-wrapper" id="appWrapper">
         <div class="search-container center" id="searchContainer">
             <div class="search-box">
-                <span class="search-icon">🔍</span>
+                <span class="search-icon"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg></span>
                 <input type="text" id="searchInput" placeholder="Введіть код точки..." autocomplete="off">
             </div>
             <div class="search-filters" id="searchFilters">
@@ -75,7 +76,7 @@
         <div class="results-container" id="resultsContainer"></div>
     </div>
 
-    <button id="backToTop" class="back-to-top" aria-label="вгору">↑</button>
+    <button id="backToTop" class="back-to-top" aria-label="Вгору"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg></button>
 
     <div class="modal-overlay" id="modalOverlay">
         <div class="modal-box assort-box">

@@ -22,27 +22,6 @@
         width: calc(100% - 24px);
     }
 
-    .user-badge {
-        top: max(12px, env(safe-area-inset-top));
-        left: 12px;
-        max-width: calc(100vw - 132px);
-        font-size: 0.82rem;
-    }
-
-    .user-name {
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .logout-btn {
-        flex: 0 0 auto;
-        min-height: 40px;
-        padding: 8px 12px;
-        font-size: 0.75rem;
-    }
-
     .theme-toggle {
         top: max(8px, env(safe-area-inset-top));
         right: 12px;
@@ -169,8 +148,7 @@
     .card-actions { gap: 8px; }
 
     .card-actions .action-btn {
-        display: flex;
-        min-height: 52px;
+        min-height: 48px;
         flex-direction: row;
         align-items: center;
         justify-content: center;
@@ -180,20 +158,6 @@
         line-height: 1.15;
         text-wrap: balance;
     }
-
-    .card-actions .action-btn::before {
-        display: inline-flex;
-        flex: 0 0 auto;
-        line-height: 1;
-    }
-
-    .card-actions .action-btn[data-action="open"]::before     { content: '📊'; font-size: 1.1rem; }
-    .card-actions .action-btn[data-action="assort"]::before   { content: '📦'; font-size: 1.1rem; }
-    .card-actions .action-btn[data-action="pay"]::before      { content: '💰'; font-size: 1.1rem; }
-    .card-actions .action-btn[data-action="stock"]::before    { content: '📋'; font-size: 1.1rem; }
-    .card-actions .action-btn[data-action="shipment"]::before { content: '🚚'; font-size: 1.1rem; }
-    .card-actions .action-btn[data-action="recount"]::before  { content: '🔄'; font-size: 1.1rem; }
-    .card-actions .action-btn[data-action="note"]::before     { content: '📝'; font-size: 1.1rem; }
 
     .lock-note { font-size: 0.85rem; padding: 10px 12px; }
 
@@ -376,7 +340,10 @@ body.is-hidden *::after {
 }
 
 .low-end .modal-overlay { transition: none; }
-.low-end .modal-box { transition: none; }
+.low-end .modal-box {
+    transition: none;
+    box-shadow: var(--shadow-card);
+}
 .low-end .toast { transition: none; }
 
 .low-end .success-burst svg { animation: none; }
@@ -391,7 +358,7 @@ body.is-hidden *::after {
 .low-end .connection-status.offline .status-dot { animation: none; }
 .low-end .connection-status.syncing .refresh-icon { animation: none; }
 
-.low-end .point-card { transition: none; }
+.low-end .point-card { transition: none; animation: none; }
 .low-end .filter-chip.active { animation: none; }
 .low-end .lock-badge,
 .low-end .lock-note,

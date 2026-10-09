@@ -4,9 +4,8 @@
 @import url('./css/ui.css');
 
 /* ============================================================
-   базовые переменные и разметка
-   ============================================================ */
-
+базовые переменные и разметка
+============================================================ */
 * {
     box-sizing: border-box;
     margin: 0;
@@ -18,7 +17,7 @@
 :root {
     --bg: #f3f5f9;
     --bg-soft: #eef4ff;
-    --surface: rgba(255, 255, 255, 0.9);
+    --surface: rgba(255, 255, 255, 0.92);
     --surface-2: #f6f8fc;
     --surface-3: #edf1f6;
     --border: rgba(15, 23, 42, 0.08);
@@ -38,16 +37,16 @@
     --r-sm: 10px;
     --r: 14px;
     --r-lg: 18px;
-    --shadow-card: none;
-    --shadow-float: none;
+    --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.04);
+    --shadow-float: 0 4px 12px rgba(15, 23, 42, 0.08);
     --shadow-modal: 0 18px 38px rgba(15, 23, 42, 0.12);
     --ease: cubic-bezier(0.16, 1, 0.3, 1);
     --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --glow-primary: 0 0 0 4px rgba(79, 142, 247, 0.15);
 }
 
 body {
-    background:
-        linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+    background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
     color: var(--text);
     height: 100dvh;
     display: flex;
@@ -77,11 +76,11 @@ body.dark-theme {
     --warning-soft: rgba(250, 204, 21, 0.12);
     --warning-text: #facc15;
     --accent: #b88cff;
-    --shadow-card: none;
-    --shadow-float: none;
+    --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3);
+    --shadow-float: 0 4px 16px rgba(0, 0, 0, 0.4);
     --shadow-modal: 0 18px 38px rgba(0, 0, 0, 0.55);
-    background:
-        linear-gradient(180deg, #090d12 0%, #0d1117 100%);
+    --glow-primary: 0 0 0 4px rgba(112, 168, 255, 0.2);
+    background: linear-gradient(180deg, #090d12 0%, #0d1117 100%);
 }
 
 .app-wrapper {
@@ -97,26 +96,27 @@ body.dark-theme {
 }
 
 /* ============================================================
-   полоса загрузки
-   ============================================================ */
-
+полоса загрузки
+============================================================ */
 .top-progress {
     position: fixed;
     top: 0; left: 0; right: 0;
-    height: 2px;
+    height: 3px;
     z-index: 5000;
     pointer-events: none;
     overflow: hidden;
+    background: rgba(0, 0, 0, 0.05);
 }
 
 .top-progress::before {
     content: '';
     position: absolute;
     inset: 0;
-    background: var(--primary);
+    background: linear-gradient(90deg, var(--primary), var(--accent));
     transform: scaleX(0);
     transform-origin: left center;
     opacity: 0;
+    box-shadow: 0 0 10px var(--primary);
 }
 
 .top-progress.active::before {
@@ -130,9 +130,8 @@ body.dark-theme {
 }
 
 /* ============================================================
-   поиск и фильтры
-   ============================================================ */
-
+поиск и фильтры
+============================================================ */
 .search-container {
     width: 100%;
     display: flex;
@@ -147,32 +146,32 @@ body.dark-theme {
 
 .search-box {
     width: 100%;
-    background: rgba(255, 255, 255, 0.9);
+    background: var(--surface);
     border-radius: 22px;
     display: flex;
     align-items: center;
     padding: 14px 18px;
-    border: 1px solid rgba(15, 23, 42, 0.08);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.35);
-    transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+    border: 2px solid transparent;
+    box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255,255,255,0.35);
+    transition: border-color 0.25s ease, background-color 0.25s ease, 
+                box-shadow 0.25s ease, transform 0.25s ease;
 }
 
 .search-box:focus-within {
-    border-color: rgba(79, 142, 247, 0.5);
-    background: rgba(255, 255, 255, 1);
-    box-shadow: 0 0 0 3px rgba(79, 142, 247, 0.10), inset 0 1px 0 rgba(255,255,255,0.35);
+    border-color: var(--primary);
+    background: var(--surface);
+    box-shadow: var(--glow-primary), var(--shadow-float), inset 0 1px 0 rgba(255,255,255,0.35);
+    transform: scale(1.01);
 }
 
 body.dark-theme .search-box {
-    background: rgba(17, 20, 25, 0.96);
-    border-color: rgba(255, 255, 255, 0.08);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+    background: var(--surface);
+    box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255,255,255,0.04);
 }
 
 body.dark-theme .search-box:focus-within {
-    border-color: rgba(112, 168, 255, 0.55);
-    background: rgba(17, 20, 25, 1);
-    box-shadow: 0 0 0 3px rgba(112, 168, 255, 0.12), inset 0 1px 0 rgba(255,255,255,0.04);
+    border-color: var(--primary);
+    box-shadow: var(--glow-primary), var(--shadow-float), inset 0 1px 0 rgba(255,255,255,0.04);
 }
 
 .search-box input {
@@ -180,19 +179,15 @@ body.dark-theme .search-box:focus-within {
 }
 
 .search-icon {
-    color: var(--text-muted);
-}
-
-.search-icon {
     font-size: 1.1rem;
     margin-right: 10px;
     color: var(--text-muted);
-    transition: color 0.2s ease, transform 0.2s ease;
+    transition: color 0.25s ease, transform 0.25s ease;
 }
 
 .search-box:focus-within .search-icon {
     color: var(--primary);
-    transform: scale(1.1);
+    transform: scale(1.15) rotate(-8deg);
 }
 
 .search-box input {
@@ -202,6 +197,7 @@ body.dark-theme .search-box:focus-within {
     font-size: 1.05rem;
     color: var(--text-heading);
     background: transparent;
+    font-weight: 500;
 }
 
 .search-hint {
@@ -226,12 +222,12 @@ body.dark-theme .search-box:focus-within {
     gap: 0;
     margin-top: 12px;
     padding: 4px;
-    background: rgba(255, 255, 255, 0.82);
-    border: 1px solid rgba(15, 23, 42, 0.06);
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 15px;
     width: 100%;
     max-width: 430px;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.4);
+    box-shadow: var(--shadow-card);
 }
 
 .filter-chip {
@@ -250,21 +246,20 @@ body.dark-theme .search-box:focus-within {
 .filter-chip:active { transform: scale(0.94); }
 
 .filter-chip.active {
-    background: rgba(255, 255, 255, 1);
-    color: var(--text-heading);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.56);
+    background: var(--surface);
+    color: var(--primary);
+    box-shadow: 0 2px 8px rgba(79, 142, 247, 0.15), inset 0 1px 0 rgba(255,255,255,0.56);
     animation: chipPop 0.3s var(--ease-bounce);
 }
 
 body.dark-theme .search-filters {
-    background: rgba(19, 22, 28, 0.88);
-    border-color: rgba(255, 255, 255, 0.06);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+    background: var(--surface-2);
+    border-color: var(--border);
 }
 
 body.dark-theme .filter-chip.active {
-    background: rgba(255, 255, 255, 0.08);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+    background: var(--surface-3);
+    box-shadow: 0 2px 8px rgba(112, 168, 255, 0.2), inset 0 1px 0 rgba(255,255,255,0.06);
 }
 
 @keyframes chipPop {
@@ -274,9 +269,8 @@ body.dark-theme .filter-chip.active {
 }
 
 /* ============================================================
-   результаты
-   ============================================================ */
-
+результаты
+============================================================ */
 .results-container {
     width: 100%;
     position: absolute;
@@ -285,6 +279,7 @@ body.dark-theme .filter-chip.active {
     overflow-y: auto;
     opacity: 0;
     pointer-events: none;
+    padding-top: 4px;
     padding-bottom: 20px;
     scrollbar-width: none;
     overscroll-behavior: contain;
@@ -300,36 +295,74 @@ body.dark-theme .filter-chip.active {
 }
 
 /* ============================================================
-   карточка точки
-   ============================================================ */
-
+карточка точки — УЛУЧШЕННАЯ ВЕРСИЯ
+============================================================ */
 .point-card {
-    background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(247, 249, 252, 0.98));
+    position: relative;
+    background: var(--surface);
     border-radius: 18px;
     padding: 16px 18px 18px;
     margin-bottom: 12px;
-    border: 1px solid rgba(15, 23, 42, 0.06);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.75);
-    transition: border-color 0.2s ease, background-color 0.2s ease;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-card);
+    transition: transform 0.25s var(--ease), box-shadow 0.25s ease, 
+                border-color 0.25s ease, background-color 0.25s ease;
+    overflow: hidden;
+}
+
+.point-card:not(.skeleton-card) {
+    animation: pointCardEnter 0.32s var(--ease) both;
+    animation-delay: calc(var(--i, 0) * 18ms);
+}
+
+/* Звичайна картка без кольорової смуги; попереджувальні кольори лишаються */
+.point-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: transparent;
+    transition: width 0.2s ease, background-color 0.2s ease;
+    border-radius: 0 4px 4px 0;
+}
+
+/* Долг — красная полоса */
+.point-card:has(.debt-positive)::before {
+    background: var(--danger);
+}
+
+/* Заблокирована — жёлтая полоса */
+.point-card.locked::before {
+    background: #f59e0b;
+}
+
+/* Заблокирована + долг — красная приоритетнее */
+.point-card.locked:has(.debt-positive)::before {
+    background: var(--danger);
 }
 
 @media (hover: hover) and (pointer: fine) {
     .point-card:not(.skeleton-card):hover {
-        border-color: rgba(79, 142, 247, 0.18);
-        background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(245, 248, 252, 1));
+        transform: translateY(-3px);
+        box-shadow: var(--shadow-float);
+        border-color: var(--primary);
     }
+    
+}
+
+.point-card:active {
+    transform: scale(0.995);
 }
 
 body.dark-theme .point-card {
-    background: linear-gradient(180deg, rgba(19, 22, 28, 0.96), rgba(17, 20, 25, 0.98));
-    border-color: rgba(255, 255, 255, 0.06);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+    background: var(--surface);
+    border-color: var(--border);
+    box-shadow: var(--shadow-card);
 }
 
-body.dark-theme .point-card:hover {
-    border-color: rgba(112, 168, 255, 0.18);
-    background: linear-gradient(180deg, rgba(20, 24, 30, 0.98), rgba(17, 20, 25, 1));
-}
+body.dark-theme .point-card:hover { border-color: var(--primary); }
 
 .point-title {
     color: var(--text-heading);
@@ -351,8 +384,9 @@ body.dark-theme .point-card:hover {
     align-items: center;
     margin-bottom: 12px;
     padding-bottom: 10px;
+    padding-left: 8px;
     gap: 8px;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+    border-bottom: 1px solid var(--separator);
 }
 
 .point-header > div:last-child {
@@ -383,11 +417,11 @@ body.dark-theme .point-card:hover {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: rgba(0, 122, 255, 0.06);
+    background: var(--primary-soft);
     color: var(--primary);
     padding: 4px 8px;
     border-radius: 999px;
-    border: 1px solid rgba(0, 122, 255, 0.08);
+    border: 1px solid transparent;
     font-family: ui-monospace, monospace;
     font-weight: 700;
     font-size: 0.7rem;
@@ -399,6 +433,7 @@ body.dark-theme .point-card:hover {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 14px;
+    padding-left: 8px;
 }
 
 .info-item label {
@@ -466,8 +501,8 @@ body.dark-theme .point-card:hover {
     min-height: 0;
     width: fit-content;
     max-width: 100%;
-    background: rgba(255, 59, 48, 0.12);
-    border: 1px solid var(--separator);
+    background: var(--danger-soft);
+    border: 1px solid transparent;
     border-left: 3px solid var(--danger);
     border-radius: var(--r-sm);
     padding: 6px 10px;
@@ -505,11 +540,12 @@ body.dark-theme .point-card:hover {
 }
 
 /* ============================================================
-   кнопки
-   ============================================================ */
-
+кнопки — УЛУЧШЕННАЯ ВЕРСИЯ
+============================================================ */
 .action-btn {
-    background: linear-gradient(180deg, #70a8ff 0%, #4f8ef7 100%);
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(180deg, var(--primary) 0%, var(--primary) 100%);
     color: #fff;
     border: none;
     padding: 9px 16px;
@@ -519,34 +555,82 @@ body.dark-theme .point-card:hover {
     font-weight: 700;
     letter-spacing: -0.01em;
     cursor: pointer;
-    box-shadow: none;
-    transition: filter 0.15s ease, opacity 0.15s ease;
+    box-shadow: 0 2px 8px rgba(79, 142, 247, 0.2);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+
+/* Ripple-эффект при клике */
+.action-btn::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    transform: translate(-50%, -50%);
+    transition: width 0.4s ease, height 0.4s ease, opacity 0.4s ease;
+    opacity: 0;
+}
+
+.action-btn:active::after {
+    width: 300px;
+    height: 300px;
+    opacity: 1;
+    transition: width 0s, height 0s, opacity 0s;
 }
 
 @media (hover: hover) and (pointer: fine) {
     .action-btn:not(:disabled):hover {
-        filter: brightness(1.02);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(79, 142, 247, 0.3);
+        filter: brightness(1.05);
     }
-    .btn-success:not(:disabled):hover { filter: brightness(1.02); }
-    .btn-accent:not(:disabled):hover  { filter: brightness(1.02); }
+    
+    .btn-success:not(:disabled):hover { 
+        box-shadow: 0 4px 12px rgba(43, 182, 115, 0.3);
+        filter: brightness(1.05); 
+    }
+    
+    .btn-accent:not(:disabled):hover { 
+        box-shadow: 0 4px 12px rgba(154, 106, 246, 0.3);
+        filter: brightness(1.05); 
+    }
 }
 
-
 .action-btn:not(:disabled):active {
-    transform: scale(0.96);
-    box-shadow: none;
+    transform: scale(0.96) translateY(0);
+    box-shadow: 0 1px 4px rgba(79, 142, 247, 0.2);
 }
 
 .action-btn:disabled {
     background: var(--surface-3);
     color: var(--text-muted);
     cursor: not-allowed;
+    box-shadow: none;
 }
 
-.btn-secondary { background: var(--surface-3); color: var(--text-heading); }
-.btn-success   { background: var(--success); }
-.btn-accent    { background: var(--accent); }
-.action-btn[data-action="assort"] { background: var(--accent); }
+.btn-secondary { 
+    background: var(--surface-3); 
+    color: var(--text-heading); 
+    box-shadow: none;
+}
+
+.btn-success   { 
+    background: var(--success); 
+    box-shadow: 0 2px 8px rgba(43, 182, 115, 0.2);
+}
+
+.btn-accent    { 
+    background: var(--accent); 
+    box-shadow: 0 2px 8px var(--accent-soft);
+}
+
+.action-btn[data-action="assort"] { 
+    background: var(--accent); 
+    box-shadow: 0 2px 8px var(--accent-soft);
+}
 
 .card-actions .action-btn[data-action="stock"],
 .card-actions .action-btn[data-action="shipment"],
@@ -555,6 +639,7 @@ body.dark-theme .point-card:hover {
     background: var(--surface-2);
     color: var(--text-heading);
     border: 1px solid var(--border);
+    box-shadow: none;
 }
 
 .card-actions .action-btn:focus-visible {
@@ -578,6 +663,11 @@ body.dark-theme .point-card:hover {
     border-top-color: #fff;
     border-radius: 50%;
     animation: spin 0.6s linear infinite;
+    background: transparent;
+    width: auto;
+    height: auto;
+    transform: none;
+    opacity: 1;
 }
 
 @keyframes spin {
@@ -590,6 +680,7 @@ body.dark-theme .point-card:hover {
     gap: 8px;
     margin-top: 14px;
     padding-top: 14px;
+    padding-left: 8px;
     border-top: 1px solid var(--separator);
 }
 
@@ -609,45 +700,45 @@ body.dark-theme .point-card:hover {
     .point-card {
         padding: 22px 24px;
         border-radius: 16px;
-        box-shadow: var(--shadow-float);
+        box-shadow: var(--shadow-card);
     }
-
+    
     .point-header {
         margin-bottom: 16px;
         padding-bottom: 14px;
     }
-
+    
     .point-title { font-size: 1.2rem; }
-
+    
     .point-code {
         padding: 4px 10px;
         border-radius: 999px;
         background: var(--primary-soft);
         color: var(--primary);
     }
-
+    
     .point-grid {
         grid-template-columns: minmax(0, 1.2fr) minmax(72px, 0.55fr) minmax(0, 1.45fr);
         gap: 16px 20px;
     }
-
+    
     .info-item label {
         margin-bottom: 5px;
         font-size: 0.74rem;
         letter-spacing: 0;
     }
-
+    
     .info-item span {
         font-size: 0.96rem;
         line-height: 1.35;
     }
-
+    
     .card-actions {
         gap: 10px;
         margin-top: 18px;
         padding-top: 16px;
     }
-
+    
     .user-badge {
         top: 16px;
         left: 16px;
@@ -660,14 +751,14 @@ body.dark-theme .point-card:hover {
         background: var(--surface);
         box-shadow: var(--shadow-card);
     }
-
+    
     .user-name {
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
     }
-
+    
     .logout-btn {
         flex: 0 0 auto;
         min-height: 32px;
@@ -676,27 +767,28 @@ body.dark-theme .point-card:hover {
         border-radius: 999px;
         background: var(--surface-2);
     }
-
+    
     .logout-btn:hover {
         background: var(--surface-3);
     }
-
+    
     .theme-toggle {
         top: 16px;
         right: 16px;
     }
-
+    
     .cache-toggle {
         top: 16px;
         right: 68px;
     }
-
+    
     .search-container.top { top: 84px; }
+    
     .results-container {
         top: 224px;
         bottom: 84px;
     }
-
+    
     .point-grid > .info-item:last-child {
         grid-column: 1 / -1;
         display: flex;
@@ -706,19 +798,19 @@ body.dark-theme .point-card:hover {
         padding-top: 10px;
         border-top: 1px solid var(--separator);
     }
-
+    
     .point-grid > .info-item:last-child .debt-label {
         margin: 0;
     }
-
+    
     .card-actions {
         grid-template-columns: repeat(12, minmax(0, 1fr));
     }
-
+    
     .card-actions .action-btn[data-action="open"],
     .card-actions .action-btn[data-action="assort"],
     .card-actions .action-btn[data-action="pay"] { grid-column: span 4; }
-
+    
     .card-actions .action-btn[data-action="stock"],
     .card-actions .action-btn[data-action="shipment"],
     .card-actions .action-btn[data-action="recount"],
@@ -741,12 +833,12 @@ body.dark-theme .point-card:hover {
         align-content: start;
         gap: 16px;
     }
-
+    
     .results-container.active:not(.single-result) > .point-card {
         min-width: 0;
         margin: 0;
     }
-
+    
     .results-container.active:not(.single-result) > .empty-state,
     .results-container.active:not(.single-result) > .show-more-wrap {
         grid-column: 1 / -1;
@@ -754,9 +846,8 @@ body.dark-theme .point-card:hover {
 }
 
 /* ============================================================
-   блокировки
-   ============================================================ */
-
+блокировки
+============================================================ */
 .point-card.locked {
     border-color: #fcd34d;
     background: #fffbeb;
@@ -816,9 +907,8 @@ body.dark-theme .point-card.locked {
 }
 
 /* ============================================================
-   скелетоны, ошибки, кнопка наверх
-   ============================================================ */
-
+скелетоны, ошибки, кнопка наверх
+============================================================ */
 .meter-input.error {
     border-color: var(--danger) !important;
     background: var(--danger-soft);
@@ -879,7 +969,7 @@ body.dark-theme .meter-input.error {
     border: 1px solid var(--border);
     font-size: 1.1rem;
     cursor: pointer;
-    box-shadow: var(--shadow-card);
+    box-shadow: var(--shadow-float);
     opacity: 0;
     pointer-events: none;
     transform: translateY(10px);
@@ -898,12 +988,16 @@ body.dark-theme .meter-input.error {
 }
 
 /* ============================================================
-   ключевые кадры
-   ============================================================ */
-
+ключевые кадры
+============================================================ */
 @keyframes fadeUp {
     from { opacity: 0; transform: translateY(8px); }
     to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pointCardEnter {
+    from { opacity: 0; transform: translateY(10px) scale(0.992); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 @keyframes fadeIn {

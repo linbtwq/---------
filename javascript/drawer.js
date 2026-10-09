@@ -13,8 +13,10 @@ function ensureDrawer() {
     _drawerHandle = document.createElement('button');
     _drawerHandle.type = 'button';
     _drawerHandle.className = 'drawer-handle';
-    _drawerHandle.setAttribute('aria-label', 'Відкрити панель');
-    _drawerHandle.textContent = '›';
+    _drawerHandle.setAttribute('aria-label', 'Відкрити меню');
+    _drawerHandle.setAttribute('aria-controls', 'appDrawer');
+    _drawerHandle.setAttribute('aria-expanded', 'false');
+    _drawerHandle.innerHTML = '<svg class="drawer-menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>';
     _drawerHandle.addEventListener('click', openDrawer);
 
     _drawerOverlay = document.createElement('div');
@@ -39,7 +41,10 @@ function ensureDrawer() {
         <div class="drawer-body">
             <div id="drawerGoods"></div>
         </div>
-        <div class="drawer-foot" id="drawerFoot"></div>
+        <div class="drawer-foot" id="drawerFoot">
+            <button type="button" class="drawer-logout" id="drawerLogout">Вийти</button>
+            <span class="drawer-version" id="drawerVersion"></span>
+        </div>
     `;
 
     document.body.appendChild(_drawerHandle);
@@ -47,6 +52,9 @@ function ensureDrawer() {
     document.body.appendChild(_drawerEl);
 
     _drawerEl.querySelector('#drawerClose').addEventListener('click', closeDrawer);
+    _drawerEl.querySelector('#drawerLogout').addEventListener('click', () => {
+        if (typeof logout === 'function') logout();
+    });
 }
 
 function updateDrawerUser() {
@@ -54,7 +62,7 @@ function updateDrawerUser() {
     const nameEl   = _drawerEl.querySelector('#drawerUserName');
     const roleEl   = _drawerEl.querySelector('#drawerUserRole');
     const avatarEl = _drawerEl.querySelector('#drawerAvatar');
-    const footEl   = _drawerEl.querySelector('#drawerFoot');
+    const versionEl = _drawerEl.querySelector('#drawerVersion');
 
     if (currentUser) {
         const name = currentUser.name || 'Користувач';
@@ -67,8 +75,8 @@ function updateDrawerUser() {
         avatarEl.textContent = '?';
     }
 
-    if (footEl && typeof APP_VERSION !== 'undefined') {
-        footEl.textContent = 'v' + APP_VERSION;
+    if (versionEl && typeof APP_VERSION !== 'undefined') {
+        versionEl.textContent = 'v' + APP_VERSION;
     }
 }
 
@@ -79,6 +87,8 @@ function openDrawer() {
     _drawerPrevFocus = document.activeElement;
     _drawerEl.classList.add('open');
     _drawerEl.setAttribute('aria-hidden', 'false');
+    _drawerHandle.setAttribute('aria-label', 'Закрити меню');
+    _drawerHandle.setAttribute('aria-expanded', 'true');
     _drawerOverlay.classList.add('active');
     document.body.classList.add('drawer-open');
 
@@ -97,6 +107,8 @@ function closeDrawer() {
     if (!_drawerEl || !_drawerEl.classList.contains('open')) return;
     _drawerEl.classList.remove('open');
     _drawerEl.setAttribute('aria-hidden', 'true');
+    _drawerHandle.setAttribute('aria-label', 'Відкрити меню');
+    _drawerHandle.setAttribute('aria-expanded', 'false');
     _drawerOverlay.classList.remove('active');
     document.body.classList.remove('drawer-open');
 

@@ -44,6 +44,13 @@ function goodsPriceHtml(it) {
     return `<span class="dg-price">${escapeHtml(txt)} ₴</span>`;
 }
 
+function goodsIconMarkup(kind) {
+    const paths = kind === 'folder'
+        ? '<path d="M3.5 7h6l2 2h9v9.5a1.5 1.5 0 0 1-1.5 1.5h-14A1.5 1.5 0 0 1 3.5 18.5V7Z"/><path d="M3.5 9h17"/>'
+        : '<path d="M6 8h11v8a4 4 0 0 1-4 4h-3a4 4 0 0 1-4-4V8Z"/><path d="M17 10h1.5a2.5 2.5 0 0 1 0 5H17"/><path d="M8 4c0 1 1 1 1 2M12 4c0 1 1 1 1 2"/>';
+    return `<svg class="dg-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+}
+
 // одна строка товара (общая для дерева и для поиска)
 function goodsItemHtml(it) {
     const rawName = String(it.name || '').trim();
@@ -53,7 +60,7 @@ function goodsItemHtml(it) {
 
     return `
         <div class="dg-row dg-item" data-id="${escapeHtml(it.id)}" data-type="item">
-            <div class="dg-item-icon">☕</div>
+            <div class="dg-item-icon">${goodsIconMarkup('product')}</div>
             <div class="dg-item-info">
                 <span class="dg-name${rawName ? '' : ' unnamed'}">${escapeHtml(displayName)}</span>
                 ${goodsPriceHtml(it)}
@@ -209,7 +216,7 @@ function renderGoodsItems(items) {
         html += `<div class="dg-section-label">Папки</div>`;
         html += folders.map(it => `
             <button type="button" class="dg-row dg-folder" data-id="${escapeHtml(it.id)}" data-type="folder">
-                <div class="dg-folder-badge">📁</div>
+                <div class="dg-folder-badge">${goodsIconMarkup('folder')}</div>
                 <span class="dg-name">${escapeHtml(it.name || 'Без назви')}</span>
                 <span class="dg-chev">›</span>
             </button>

@@ -15,6 +15,7 @@ const ASSETS = [
     './css/modals.css',
     './css/ui.css',
     './css/mobile.css',
+    './css/theme.css',
     './manifest.json',
     './version.js',
     './javascript/config.js',
