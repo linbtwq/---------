@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (typeof startApp === 'function') startApp();
     } else {
         if (authOverlay) authOverlay.style.display = 'flex';
-        if (pinInput) pinInput.focus();
+        if (pinInput && window.matchMedia('(pointer: fine)').matches) pinInput.focus();
     }
 
     if (pinInput) {
@@ -143,7 +143,7 @@ function logout() {
     const pinInput = document.getElementById('pinInput');
     if (pinInput) {
         pinInput.value = '';
-        pinInput.focus();
+        if (window.matchMedia('(pointer: fine)').matches) pinInput.focus();
     }
 
     const userBadge = document.getElementById('userBadge');

@@ -382,7 +382,7 @@ function startApp() {
     loadData();
     if (navigator.onLine) syncOfflineMeters();
     startAutoRefresh();
-    if (window.innerWidth > 480) {
+    if (window.matchMedia('(pointer: fine)').matches) {
         setTimeout(() => {
             const searchInput = document.getElementById('searchInput');
             if (searchInput) searchInput.focus();
@@ -427,7 +427,7 @@ function initSearchFilters() {
             localStorage.setItem('searchMode', searchMode);
             applySearchMode();
             if (searchInput) {
-                searchInput.focus();
+                if (window.matchMedia('(pointer: fine)').matches) searchInput.focus();
                 if (searchInput.value.trim() !== '') handleSearch({ target: searchInput });
             }
         });
@@ -1384,7 +1384,9 @@ function openPaymentModal(pointId) {
     document.getElementById('paymentError').style.display = 'none';
     document.querySelector('#paymentOverlay .btn-success').disabled = false;
     document.getElementById('paymentOverlay').classList.add('active');
-    setTimeout(() => { input.focus(); input.select(); }, 100);
+    if (window.matchMedia('(pointer: fine)').matches) {
+        setTimeout(() => { input.focus(); input.select(); }, 100);
+    }
 }
 function closePaymentModal() {
     document.getElementById('paymentOverlay')?.classList.remove('active');
@@ -1904,6 +1906,13 @@ function autofocusModal(modal) {
     if (!modal) return;
     const box = modal.querySelector('.modal-box');
     if (!box) return;
+
+    if (window.matchMedia('(pointer: coarse)').matches) {
+        const firstButton = Array.from(box.querySelectorAll('button:not([disabled])'))
+            .find(el => el.offsetParent !== null);
+        if (firstButton) firstButton.focus();
+        return;
+    }
 
     // Сначала пробуем сфокусировать текстовое поле — это удобнее для оператора
     const inputs = Array.from(box.querySelectorAll(
