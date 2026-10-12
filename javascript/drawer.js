@@ -1,5 +1,4 @@
-
-//панель слева
+// бічна панель
 let _drawerBuilt = false;
 let _drawerHandle = null;
 let _drawerEl = null;
@@ -59,8 +58,8 @@ function ensureDrawer() {
 
 function updateDrawerUser() {
     if (!_drawerEl) return;
-    const nameEl   = _drawerEl.querySelector('#drawerUserName');
-    const roleEl   = _drawerEl.querySelector('#drawerUserRole');
+    const nameEl = _drawerEl.querySelector('#drawerUserName');
+    const roleEl = _drawerEl.querySelector('#drawerUserRole');
     const avatarEl = _drawerEl.querySelector('#drawerAvatar');
     const versionEl = _drawerEl.querySelector('#drawerVersion');
 
@@ -122,7 +121,6 @@ function isDrawerOpen() {
     return !!_drawerEl && _drawerEl.classList.contains('open');
 }
 
-/* Escape закриває панель */
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && isDrawerOpen()) {
         e.preventDefault();
@@ -130,7 +128,6 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-/* свайп справа налево закрыть */
 let _drawerTouchX = 0;
 let _drawerTouchY = 0;
 
@@ -151,7 +148,6 @@ document.addEventListener('touchend', (e) => {
     }
 }, { passive: true });
 
-// инициализируем при загрузке DOM
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', ensureDrawer);
 } else {

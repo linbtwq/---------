@@ -5,7 +5,7 @@ let goodsCurrentParent = '';
 let goodsSearchSeq = 0;
 let goodsTimer = null;
 let goodsAbortController = null;
-const goodsSearchCache = new Map(); // кэш предыдущих поисковых фраз
+const goodsSearchCache = new Map(); // кеш попередніх пошукових фраз
 
 function goodsUrl(params) {
     const u = currentUser ? encodeURIComponent(currentUser.id) : '';
@@ -36,7 +36,7 @@ const goodsSkeleton = `
     </div>
 `;
 
-// цена товара: "45,00 ₴"; если цены нет, ничего не показываем
+// ціна товару: "45,00 ₴"; якщо ціни немає, нічого не показуємо
 function goodsPriceHtml(it) {
     const p = Number(it.price);
     if (!p || p <= 0) return '';
@@ -51,7 +51,7 @@ function goodsIconMarkup(kind) {
     return `<svg class="dg-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
 }
 
-// одна строка товара (общая для дерева и для поиска)
+// одна рядок товару, спільна для дерева та пошуку
 function goodsItemHtml(it) {
     const rawName = String(it.name || '').trim();
     const displayName = rawName.length ? rawName : 'Позиція без назви';
@@ -101,7 +101,7 @@ function initDrawerGoods() {
         <div id="goodsList"></div>
     `;
 
-    // привязываем поиск с дебаунсом
+    // прив'язуємо пошук з debounce
     const searchInput = host.querySelector('#goodsSearch');
     if (searchInput) {
         searchInput.addEventListener('input', () => {
@@ -110,9 +110,9 @@ function initDrawerGoods() {
         });
     }
 
-    // обработка кликов по списку
+    // обробка кліків по списку
     host.querySelector('#goodsList').addEventListener('click', e => {
-        // копирование кода по клику
+        // копіювання коду по кліку
         const chip = e.target.closest('.dg-code-chip');
         if (chip) {
             e.stopPropagation();
@@ -137,7 +137,7 @@ function initDrawerGoods() {
         }
     });
 
-    // кнопка назад по папкам
+    // кнопка назад по папках
     host.querySelector('#goodsNav').addEventListener('click', e => {
         const back = e.target.closest('.dg-back');
         if (!back) return;
@@ -145,7 +145,7 @@ function initDrawerGoods() {
     });
 }
 
-// вызывается во время открытия боковой панели, чтобы обновить содержимое
+// викликається під час відкриття бічної панелі, щоб оновити вміст
 function refreshDrawerGoods() {
     initDrawerGoods();
 
@@ -156,7 +156,7 @@ function refreshDrawerGoods() {
     loadGoodsLevel('');
 }
 
-// загрузка дерева
+// завантаження дерева
 async function loadGoodsLevel(parentId) {
     const box = document.getElementById('goodsList');
     const navBox = document.getElementById('goodsNav');
@@ -195,7 +195,7 @@ function renderGoodsNav(breadcrumb) {
     `;
 }
 
-// рендер эл папки
+// рендер папок
 function renderGoodsItems(items) {
     const box = document.getElementById('goodsList');
     if (!box) return;
@@ -206,7 +206,7 @@ function renderGoodsItems(items) {
         return;
     }
 
-    // Разделяем папки и товары, чтобы папки всегда шли сверху
+    // розділяємо папки і товари, щоб папки завжди були зверху
     const folders = items.filter(it => it.type === 'folder');
     const products = items.filter(it => it.type !== 'folder');
 
@@ -233,7 +233,7 @@ function renderGoodsItems(items) {
     box.innerHTML = html;
 }
 
-// поиск по номенклатуре
+// пошук по номенклатурі
 async function goodsOnSearch() {
     const input = document.getElementById('goodsSearch');
     const box = document.getElementById('goodsList');
@@ -252,7 +252,7 @@ async function goodsOnSearch() {
 
     if (navBox) navBox.style.display = 'none';
 
-    // мгновенная отдача из кэша, если эту строку уже искали
+    // миттєва видача з кешу, якщо цей запит уже шукався
     if (goodsSearchCache.has(q)) {
         const cached = goodsSearchCache.get(q);
         renderGoodsSearchResults(cached.items, cached.truncated);
@@ -261,7 +261,7 @@ async function goodsOnSearch() {
 
     box.innerHTML = goodsSkeleton;
 
-    // отменяем предыдущий незаконченный HTTP-запрос
+    // скидаємо попередній незавершений HTTP-запит
     if (goodsAbortController) {
         goodsAbortController.abort();
     }
@@ -289,7 +289,7 @@ async function goodsOnSearch() {
         renderGoodsSearchResults(items, !!data.truncated);
         goodsRendered = false;
     } catch (err) {
-        if (err.name === 'AbortError') return; // игнорируем штатную отмену
+        if (err.name === 'AbortError') return; // ігноруємо штатну відміну
         if (seq !== goodsSearchSeq) return;
         box.innerHTML = goodsErrorHtml(err, false);
     }

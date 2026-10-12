@@ -187,7 +187,6 @@ body.dark-theme .search-box:focus-within {
 
 .search-box:focus-within .search-icon {
     color: var(--primary);
-    transform: scale(1.15) rotate(-8deg);
 }
 
 .search-box input {
@@ -328,19 +327,9 @@ body.dark-theme .filter-chip.active {
     border-radius: 0 4px 4px 0;
 }
 
-/* Долг — красная полоса */
-.point-card:has(.debt-positive)::before {
-    background: var(--danger);
-}
-
 /* Заблокирована — жёлтая полоса */
 .point-card.locked::before {
     background: #f59e0b;
-}
-
-/* Заблокирована + долг — красная приоритетнее */
-.point-card.locked:has(.debt-positive)::before {
-    background: var(--danger);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -686,10 +675,25 @@ body.dark-theme .point-card:hover { border-color: var(--primary); }
 
 .card-actions .action-btn {
     width: 100%;
-    padding: 10px 12px;
-    font-size: 0.82rem;
+    min-height: 44px;
+    padding: 8px 10px;
+    font-size: 0.8rem;
+    line-height: 1.2;
     text-align: center;
     border-radius: 10px;
+}
+
+.card-actions .action-icon {
+    display: block;
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+}
+
+.card-actions .action-btn[data-action="open"],
+.card-actions .action-btn[data-action="assort"],
+.card-actions .action-btn[data-action="pay"] {
+    min-height: 44px;
 }
 
 .card-actions .action-btn:first-child {
@@ -737,6 +741,18 @@ body.dark-theme .point-card:hover { border-color: var(--primary); }
         gap: 10px;
         margin-top: 18px;
         padding-top: 16px;
+    }
+
+    .card-actions .action-btn {
+        min-height: 44px;
+        padding: 8px 10px;
+        font-size: 0.8rem;
+    }
+
+    .card-actions .action-btn[data-action="open"],
+    .card-actions .action-btn[data-action="assort"],
+    .card-actions .action-btn[data-action="pay"] {
+        min-height: 44px;
     }
     
     .user-badge {

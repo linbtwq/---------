@@ -1,20 +1,19 @@
-// javascript/notes.js
-// примітки по точці, історія записів з автором і датою
+// модалка приміток
 
 let noteLoading = false;
 let noteSending = false;
 let notePointId = null;
-// один идентификатор на одну примітку чтобы повторная отправка не создала дубль
+// один ідентифікатор на одну примітку, щоб повторне відправлення не створило дубль
 let noteRequestId = null;
 let noteTag = '';
 let noteItems = [];
 
 const NOTE_MAX = 500;
 const NOTE_TAGS = [
-    { id: 'access',  label: 'Ключ / доступ' },
+    { id: 'access', label: 'Ключ / доступ' },
     { id: 'service', label: 'Потрібен сервіс' },
-    { id: 'broken',  label: 'Не працює' },
-    { id: 'other',   label: 'Інше' }
+    { id: 'broken', label: 'Не працює' },
+    { id: 'other', label: 'Інше' }
 ];
 
 function noteTagLabel(id) {
@@ -22,7 +21,7 @@ function noteTagLabel(id) {
     return t ? t.label : '';
 }
 
-// сервер отдает дату как 2026-10-06 14:20:00
+// сервер повертає дату у форматі 2026-10-06 14:20:00
 function noteDateText(s) {
     const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(String(s || ''));
     return m ? `${m[3]}.${m[2]}.${m[1]}, ${m[4]}:${m[5]}` : String(s || '');
@@ -145,7 +144,7 @@ async function openNoteModal(pointId) {
 
     overlay.classList.add('active');
 
-    // на телефоне клавиатура закрыла бы историю поэтому фокус только на десктопе
+    // на мобільному клавіатура закриє історію, тому фокус тільки для десктопа
     if (window.matchMedia('(pointer: fine)').matches) {
         setTimeout(() => document.getElementById('noteText')?.focus(), 60);
     }
@@ -172,7 +171,7 @@ async function loadNotes() {
         const data = await res.json();
         if (!Array.isArray(data)) throw new Error('Невірна відповідь 1С');
 
-        // окно могли закрыть или открыть для другой точки пока шел запрос
+        // вікно могли закрити або відкрити для іншої точки, поки йшов запит
         if (String(notePointId) !== String(pointId)) return;
 
         noteItems = data;
@@ -288,7 +287,7 @@ async function submitNote() {
             renderNoteList();
             ta.value = '';
             noteTag = '';
-            // следующая примітка получает новый идентификатор
+            // наступна примітка отримає новий ідентифікатор
             noteRequestId = newRequestId();
             showToast('Примітку збережено');
         }

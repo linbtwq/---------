@@ -1,6 +1,6 @@
 let currentUser = null;
 
-//  восстановление сессии 
+// відновлення сесії
 (function checkInitialAuth() {
     try {
         const saved = localStorage.getItem('currentUser');
@@ -14,7 +14,7 @@ let currentUser = null;
     }
 })();
 
-//  настройка экрана входа 
+// налаштування екрана входу
 document.addEventListener('DOMContentLoaded', () => {
     const authOverlay = document.getElementById('authOverlay');
     const pinInput = document.getElementById('pinInput');
@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (pinInput) {
-        // только цифры
+        // тільки цифри
         pinInput.addEventListener('input', () => {
             pinInput.value = pinInput.value.replace(/\D/g, '').slice(0, 12);
             const err = document.getElementById('authError');
@@ -37,12 +37,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         pinInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') { e.preventDefault(); login(); }
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                login();
+            }
         });
     }
 });
 
-//  вход 
+// вхід
 async function login() {
     const pinInput = document.getElementById('pinInput');
     const errorMsg = document.getElementById('authError');
@@ -94,7 +97,6 @@ async function login() {
         pinInput.value = '';
         showUserInfo();
         if (typeof startApp === 'function') startApp();
-
     } catch (err) {
         const isPin = err && err.message === 'pin';
         errorMsg.textContent = isPin ? 'Невірний ПІН-код' : 'Немає зв\'язку з 1С';
@@ -112,18 +114,16 @@ async function login() {
     }
 }
 
-// выход 
+// вихід
 function logout() {
-
-    
     if (typeof goodsSearchCache !== 'undefined') {
-    goodsSearchCache.clear();
-}
+        goodsSearchCache.clear();
+    }
 
-    // если открыта боковая панель закрываем ее
-if (typeof closeDrawer === 'function') {
-    try { closeDrawer(); } catch (e) {}
-}
+    // якщо відкрита бічна панель, закриваємо її
+    if (typeof closeDrawer === 'function') {
+        try { closeDrawer(); } catch (e) {}
+    }
 
     document.querySelectorAll('.modal-overlay.active')
         .forEach(m => m.classList.remove('active'));
@@ -131,8 +131,8 @@ if (typeof closeDrawer === 'function') {
     localStorage.removeItem('currentUser');
     currentUser = null;
 
-    // очищаем локальную базу данных, чтобы следующий пользователь
-    // не увидел чужие закешированные точки, ассортимент и долги
+    // очищаємо локальну базу даних, щоб наступний користувач
+    // не побачив чужі кешовані точки, асортимент і борги
     if (typeof window.clearLocalDb === 'function') {
         try { window.clearLocalDb().catch(() => {}); } catch (e) {}
     }
@@ -141,7 +141,10 @@ if (typeof closeDrawer === 'function') {
     if (authOverlay) authOverlay.style.display = 'flex';
 
     const pinInput = document.getElementById('pinInput');
-    if (pinInput) { pinInput.value = ''; pinInput.focus(); }
+    if (pinInput) {
+        pinInput.value = '';
+        pinInput.focus();
+    }
 
     const userBadge = document.getElementById('userBadge');
     if (userBadge) userBadge.replaceChildren();
@@ -155,7 +158,7 @@ if (typeof closeDrawer === 'function') {
     if (typeof resetAppState === 'function') resetAppState();
 }
 
-//шапка с пользователем
+// шапка з користувачем
 function showUserInfo() {
     const userBadge = document.getElementById('userBadge');
     if (!userBadge || !currentUser) return;
@@ -172,7 +175,7 @@ function showUserInfo() {
 
     userBadge.replaceChildren(name, btn);
 
-    // обновляем данные пользователя в выезжающей панели
+    // оновлюємо дані користувача у виїжджаючій панелі
     if (typeof updateDrawerUser === 'function') {
         updateDrawerUser();
     }

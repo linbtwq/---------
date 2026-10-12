@@ -1,4 +1,4 @@
-// асортимент + замовлення поповнення
+// асортимент і замовлення поповнення
 
 let assortLoading = false;
 let orderSending = false;
@@ -74,7 +74,6 @@ async function loadPointAssortment(pointId) {
         try { await localDB.save(key, data); } catch (e) {}
 
         return { data, offline: false };
-
     } catch (err) {
         try {
             const cached = await localDB.load(key);
@@ -87,8 +86,7 @@ async function loadPointAssortment(pointId) {
     }
 }
 
-// заказ
-
+// замовлення
 function orderTotals() {
     let count = 0;
     let sum = 0;
@@ -138,7 +136,6 @@ function setQty(code, value, tile, syncInput) {
     }
 
     order.requestId = null;
-
     tile.classList.toggle('picked', q > 0);
 
     if (syncInput) {
@@ -166,7 +163,7 @@ async function submitOrder() {
         return;
     }
 
-    // сохраняем ID точки ДО resetOrder — иначе потеряем
+    // зберігаємо id точки до resetOrder, щоб не втратити її
     const pointId = order.pointId;
 
     const items = Object.keys(order.qty).map(code => ({
@@ -225,14 +222,12 @@ async function submitOrder() {
         }
 
         success = true;
-
     } catch (err) {
         const message = err && err.message ? err.message : String(err);
         const msg = (message.includes('Failed to fetch') || message.toLowerCase().includes('timeout'))
             ? '1С не відповідає. Замовлення не відправлено, спробуйте ще раз.'
             : `Не вдалося відправити замовлення: ${message}`;
         showToast(msg, true);
-
     } finally {
         orderSending = false;
         if (closeBtn) closeBtn.disabled = false;

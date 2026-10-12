@@ -26,6 +26,7 @@ const ASSETS = [
     './javascript/notes.js',
     './javascript/goods.js',
     './javascript/drawer.js',
+    './javascript/machines.js',
     './javascript/optimize.js'
 ];
 

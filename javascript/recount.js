@@ -1,11 +1,10 @@
-// javascript/recount.js
-// перерасчет (інвентаризація) окрема модалка
+// модалка перерахунку
 
 let recountLoading = false;
 let recountSending = false;
 let recountItems = [];
 let recountPointId = null;
-// один идентификатор на открытое окно чтобы повторная отправка не создала дубль
+// один ідентифікатор на одне вікно, щоб повторне відправлення не створило дубль
 let recountRequestId = null;
 
 function ensureRecountModal() {
@@ -113,7 +112,6 @@ async function openRecountModal(pointId) {
         }));
 
         renderRecountBody();
-
     } catch (err) {
         const message = err && err.message ? err.message : String(err);
         body.innerHTML = `<div class="assort-error">Не вдалося завантажити перерахунок: ${escapeHtml(message)}</div>`;

@@ -115,8 +115,8 @@ body.dark-theme .connection-status.has-queue .status-text { color: #fbbf24; }
     top: 20px; right: 20px;
     background: var(--surface);
     border: 1px solid var(--border);
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
     font-size: 1.15rem;
     cursor: pointer;
@@ -327,8 +327,8 @@ body.dark-theme .connection-status.has-queue .status-text { color: #fbbf24; }
     right: 72px;
     background: var(--surface);
     border: 1px solid var(--border);
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
     font-size: 1.05rem;
     cursor: pointer;
@@ -370,8 +370,8 @@ body.dark-theme { --surface-solid: #111419; }
     left: max(16px, env(safe-area-inset-left, 0px));
     top: max(12px, env(safe-area-inset-top, 0px));
     z-index: 950;
-    width: 44px;
-    height: 44px;
+    width: 40px;
+    height: 40px;
     padding: 0;
     display: grid;
     place-items: center;
@@ -516,6 +516,12 @@ body.drawer-open .drawer-handle {
 
 .drawer-nav { padding: 8px 8px 0; }
 .drawer-nav:empty { display: none; }
+
+.drawer-actions {
+    padding: 8px 8px 4px;
+    border-bottom: 1px solid var(--separator);
+    margin-bottom: 4px;
+}
 
 .drawer-empty {
     padding: 28px 16px;

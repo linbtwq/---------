@@ -38,6 +38,11 @@
         font-size: 1.15rem;
     }
 
+    .drawer-handle {
+        width: 44px;
+        height: 44px;
+    }
+
     .search-container.top { top: var(--mobile-search-top); }
     .search-container.top .search-hint { display: none; }
 

@@ -1,4 +1,4 @@
-// script.js — полированная версия
+// логика приложения для работы с точками, показниками и оплатой
 
 if (typeof APP_CONFIG === 'undefined') {
     throw new Error('Не знайдено config.js — підключіть його в index.html перед script.js');
@@ -10,18 +10,30 @@ const LOCK_HOURS = APP_CONFIG.lockHours;
 const AUTO_LOGOUT_AFTER_SUBMIT = APP_CONFIG.autoLogoutAfterSubmit;
 
 const SEARCH_MODES = {
-    all:     { placeholder: 'Номер точки, номер машини або назва...',
-               hint: 'Номер точки або код машини, або назва. 0 покаже всі точки',
-               empty: 'Нічого не знайдено' },
-    point:   { placeholder: 'Введіть номер точки...',
-               hint: 'Номер точки без нулів. 0 покаже всі точки',
-               empty: 'Торгова точка з таким кодом не знайдена' },
-    machine: { placeholder: 'Введіть номер або назву апарату...',
-               hint: 'Код машини або назва обладнання. 0 покаже апарати',
-               empty: 'Обладнання з таким номером не знайдено' }
+    all: {
+        placeholder: 'Номер точки, номер машини або назва...',
+        hint: 'Номер точки або код машини, або назва. 0 покаже всі точки',
+        empty: 'Нічого не знайдено'
+    },
+    point: {
+        placeholder: 'Введіть номер точки...',
+        hint: 'Номер точки без нулів. 0 покаже всі точки',
+        empty: 'Торгова точка з таким кодом не знайдена'
+    },
+    machine: {
+        placeholder: 'Введіть номер або назву апарату...',
+        hint: 'Код машини або назва обладнання. 0 покаже апарати',
+        empty: 'Обладнання з таким номером не знайдено'
+    }
 };
 
-// ─── формат и escape ───────────────────────────────────
+const MODAL_IDS = {
+    overlay: 'modalOverlay',
+    confirmOverlay: 'confirmOverlay',
+    paymentOverlay: 'paymentOverlay'
+};
+
+// блок формата и экранирования
 const _nf = new Intl.NumberFormat('ru-RU');
 const _fmtCache = new Map();
 const fmt = (num) => {
@@ -44,7 +56,7 @@ const escapeHtml = (v) => String(v ?? '').replace(_escRe, c => _escMap[c]);
 const stripZeros = (v) => String(v ?? '').trim().replace(/^0+/, '');
 const normalizeCode = (v) => String(v ?? '').replace(/\s+/g, '').replace(/^0+/, '');
 
-// ─── состояние ─────────────────────────────────────────
+// блок состояния приложения
 let globalData = [];
 let lastDeleteTime = 0;
 let isAtTop = false;
@@ -90,7 +102,7 @@ window.addEventListener('unhandledrejection', (e) => {
     console.warn('[unhandled]', e.reason);
 });
 
-// ─── кэш блокировок и очереди ──────────────────────────
+// блок кэша блокировок и очереди
 let _locksCache = null;
 let _locksCacheAt = 0;
 
@@ -132,7 +144,7 @@ function saveQueue(q) {
     _queueCacheAt = Date.now();
 }
 
-// ─── отклоненные записи очереди ─────────────────────────
+// блок отклонённых записей очереди
 // запись попадает сюда когда 1С несколько раз подряд ответила ошибкой
 const MAX_QUEUE_ATTEMPTS = 5;
 const FAILED_KEY = 'failedMetersQueue';
@@ -191,7 +203,7 @@ async function reviewFailedQueue() {
     return true;
 }
 
-// ─── снимок блокировок ─────────────────────────────────
+// блок снимка блокировок
 let _lockSnapshot = {};
 let _lockSnapshotKey = '';
 let _lockSnapshotData = null;
@@ -255,7 +267,7 @@ function getOrderLock(item) {
     return snap ? snap.order : null;
 }
 
-// ─── сеть ──────────────────────────────────────────────
+// блок сети
 async function fetchWithTimeout(url, options = {}, ms = APP_CONFIG.loadTimeoutMs) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), ms);
@@ -298,7 +310,7 @@ function hideTopProgress() {
     setTimeout(() => el.classList.remove('active'), 1800);
 }
 
-// ─── хранилище ─────────────────────────────────────────
+// блок локального хранилища
 const localDB = {
     name: 'CoffeeMetersDB',
     store: 'cache',
@@ -332,7 +344,7 @@ const localDB = {
     }
 };
 
-// Очистка IndexedDB — вызывается из auth.js::logout()
+// очистка indexeddb, вызывается из auth.js после выхода
 // чтобы следующий пользователь не увидел чужие данные
 function clearLocalDb() {
     return new Promise((resolve) => {
@@ -355,7 +367,7 @@ function clearLocalDb() {
 }
 window.clearLocalDb = clearLocalDb;
 
-// ─── инициализация ─────────────────────────────────────
+// блок инициализации
 document.addEventListener('DOMContentLoaded', () => {
     initServiceWorker();
     initTheme();
@@ -500,7 +512,7 @@ function initClearCacheButton() {
     if (!btn) return;
 
     btn.addEventListener('click', async () => {
-        // Блокируем очистку, если есть неотправленные данные
+        // блокируем очистку, если есть неотправленные данные
         if (readQueue().length > 0) {
             await showConfirmDialog({
                 title: 'Помилка',
@@ -584,7 +596,7 @@ async function runSync({ manual, quiet }) {
                 serverError = `1С відповіла ${response.status}${body ? ': ' + body : ''}`;
                 console.warn('[sync] помилка сервера:', response.status, body, payload);
 
-                // ошибку сервера считаем попыткой, сетевые сбои не считаем
+                // ошибку сервера считаем попыткой, сетевые сбои считаем отдельно
                 payload.attempts = (payload.attempts || 0) + 1;
                 payload.lastError = serverError;
                 if (payload.attempts >= MAX_QUEUE_ATTEMPTS) {
@@ -600,7 +612,7 @@ async function runSync({ manual, quiet }) {
         }
     }
 
-    // отклоненные записи не удаляем а переносим в отдельный список
+    // отклонённые записи не удаляем, а переносим в отдельный список
     if (dropped.length) {
         const failed = readFailed();
         for (const p of dropped) {
@@ -609,15 +621,15 @@ async function runSync({ manual, quiet }) {
         saveFailed(failed);
     }
 
-    // кеш очереди живет 500 мс и после долгих запросов читается заново
-    // поэтому счетчик попыток переносим из обработанных объектов вручную
+    // кэш очереди живёт 500 мс, а после долгих запросов читается заново
+    // поэтому счётчик попыток переносим из обработанных объектов вручную
     const byId = new Map(queue.map(p => [p.request_id, p]));
     const rest = readQueue()
         .filter(p => !done.has(p.request_id))
         .map(p => byId.get(p.request_id) || p);
     saveQueue(rest);
 
-    // снимаем блокировку точки если по ней в очереди больше ничего не осталось
+    // снимаем блокировку точки, если по ней в очереди больше ничего не осталось
     for (const p of dropped) {
         if (!rest.some(r => String(r.point_id) === String(p.point_id))) unlockPoint(p.point_id);
     }
@@ -646,59 +658,82 @@ function initEventListeners() {
 
     const results = document.getElementById('resultsContainer');
     if (results) {
-        results.addEventListener('click', (e) => {
-            const btn = e.target.closest('[data-action]');
-            if (!btn) return;
-            const { action, id } = btn.dataset;
-            if (action === 'open') openMeterModal(id);
-            else if (action === 'more') appendCards(results, false);
-            else if (action === 'pay') openPaymentModal(id);
-            else if (action === 'assort') openAssortModal(id);
-            else if (action === 'stock') openStockModal(id);
-            else if (action === 'shipment') openStub('Відвантаження на точку', id);
-            else if (action === 'recount') openRecountModal(id);
-            else if (action === 'note') openNoteModal(id);
-        });
-        results.addEventListener('scroll', updateBackToTop, { passive: true });
+        results.addEventListener('click', onResultsClick);
+        results.addEventListener('keydown', onResultsKeydown);
     }
 
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState !== 'visible') return;
-        if (readQueue().length) syncOfflineMeters({ quiet: true });
-        if (currentUser && Date.now() - lastLoadedAt > APP_CONFIG.refreshAfterMinutes * 60 * 1000) {
-            loadData({ silent: true });
-        }
-        renderStatus();
-    });
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     const statusBox = document.getElementById('connectionStatus');
     if (statusBox) statusBox.addEventListener('click', manualRefresh);
 
-    window.addEventListener('online', () => {
-        retryAttempt = 0;
-        syncOfflineMeters();
-        if (currentUser) loadData({ silent: true });
-    });
+    window.addEventListener('online', handleOnlineStatus);
     window.addEventListener('offline', () => setConnectionStatus(false));
-
-    window.addEventListener('click', (event) => {
-        if (event.target === document.getElementById('modalOverlay')) closeModal();
-        if (event.target === document.getElementById('confirmOverlay')) closeConfirmModal();
-        if (event.target === document.getElementById('paymentOverlay')) closePaymentModal();
-    });
-
+    window.addEventListener('click', handleGlobalClick);
     document.addEventListener('keydown', onKeyDown);
 
-    if (statusTimer) clearInterval(statusTimer);
-    statusTimer = setInterval(() => {
-        if (document.visibilityState === 'visible' && currentUser) renderStatus();
-    }, 15000);
-
+    scheduleStatusLoop();
     setupMeterButtons();
     initBackToTop();
     renderStatus();
     scheduleSyncRetry();
     initClearCacheButton();
+}
+
+function scheduleStatusLoop() {
+    if (statusTimer) clearInterval(statusTimer);
+    statusTimer = setInterval(() => {
+        if (document.visibilityState === 'visible' && currentUser) renderStatus();
+    }, 15000);
+}
+
+function onResultsClick(event) {
+    const btn = event.target.closest('[data-action]');
+    if (!btn) return;
+
+    const { action, id } = btn.dataset;
+    const results = document.getElementById('resultsContainer');
+
+    if (action === 'open') openMeterModal(id);
+    else if (action === 'more') appendCards(results, false);
+    else if (action === 'pay') openPaymentModal(id);
+    else if (action === 'assort') openAssortModal(id);
+    else if (action === 'stock') openStockModal(id);
+    else if (action === 'machines') openMachinesModal(id);
+    else if (action === 'shipment') openStub('Відвантаження на точку', id);
+    else if (action === 'recount') openRecountModal(id);
+    else if (action === 'note') openNoteModal(id);
+}
+
+function onResultsKeydown(event) {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+
+    const card = event.target.closest('.point-card-machine');
+    if (!card) return;
+
+    event.preventDefault();
+    openMachinesModal(card.dataset.id);
+}
+
+function handleVisibilityChange() {
+    if (document.visibilityState !== 'visible') return;
+    if (readQueue().length) syncOfflineMeters({ quiet: true });
+    if (currentUser && Date.now() - lastLoadedAt > APP_CONFIG.refreshAfterMinutes * 60 * 1000) {
+        loadData({ silent: true });
+    }
+    renderStatus();
+}
+
+function handleOnlineStatus() {
+    retryAttempt = 0;
+    syncOfflineMeters();
+    if (currentUser) loadData({ silent: true });
+}
+
+function handleGlobalClick(event) {
+    if (event.target === document.getElementById(MODAL_IDS.overlay)) closeModal();
+    if (event.target === document.getElementById(MODAL_IDS.confirmOverlay)) closeConfirmModal();
+    if (event.target === document.getElementById(MODAL_IDS.paymentOverlay)) closePaymentModal();
 }
 
 function setupMeterButtons() {
@@ -745,7 +780,7 @@ function showVersion() {
     if (el && typeof APP_VERSION !== 'undefined') el.textContent = 'v' + APP_VERSION;
 }
 
-// ─── загрузка справочника ──────────────────────────────
+// блок загрузки справочника
 function refreshResults() {
     const input = document.getElementById('searchInput');
     if (input && input.value.trim() !== '') handleSearch({ target: input });
@@ -818,7 +853,7 @@ async function loadData({ silent = false } = {}) {
     }
 }
 
-// ─── поиск ─────────────────────────────────────────────
+// блок поиска
 function handleSearch(e) {
     const query = e.target.value?.trim().toLowerCase() || "";
     const searchContainer = document.getElementById('searchContainer');
@@ -969,7 +1004,7 @@ function actionIconMarkup(action) {
     return `<svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[action] || ''}</svg>`;
 }
 
-// карточка точки
+// блок карточки точки
 function cardHtml(item, idx) {
     const lockSnap = _lockSnapshot[String(item.id)] || { meter: null, order: null };
     const meterLock = lockSnap.meter;
@@ -989,6 +1024,41 @@ function cardHtml(item, idx) {
         machineDisplay = item.coffee_machine ? `${machineDisplay} ${machineCode}` : machineCode;
     }
 
+    // режим машины
+    // карточка без кнопок, вся кликабельна и открывает модалку с остатками
+    if (searchMode === 'machine') {
+        return `
+            <div class="point-card point-card-machine${(meterLock || orderLock) ? ' locked' : ''}"
+                 style="--i:${idx}"
+                 data-rendered="1"
+                 data-action="machines"
+                 data-id="${id}"
+                 role="button"
+                 tabindex="0">
+                <div class="point-header">
+                    <div>
+                        <span class="point-title">${escapeHtml(item.point_name) || 'Без назви'}</span>
+                        <span class="point-code">Код: ${id}</span>
+                    </div>
+                    ${meterBlocked ? '<span class="lock-badge">Показники зняті</span>' : ''}
+                </div>
+
+                <div class="point-grid">
+                    <div class="info-item"><label>Контрагент</label><span>${escapeHtml(item.counterparty) || '—'}</span></div>
+                    <div class="info-item"><label>Адреса</label><span>${escapeHtml(item.address) || '—'}</span></div>
+                    <div class="info-item machine-info"><label>Обладнання</label><span class="${item.coffee_machine ? 'machine-tag' : ''}">${machineDisplay}</span></div>
+                </div>
+
+                <div class="machine-cta">
+                    <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8h14v9a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V8Z"/><path d="M9 8V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v3"/><path d="M9 13h6"/><path d="M10 16h4"/></svg>
+                    <span>Показати залишки</span>
+                    <svg class="machine-cta-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+                </div>
+            </div>
+        `;
+    }
+
+    // обычный режим поиска
     const badges = [];
     if (meterBlocked) badges.push('<span class="lock-badge">Показники зняті</span>');
 
@@ -1099,7 +1169,7 @@ function renderResults(data) {
     container.scrollTop = 0;
 }
 
-// ─── модалка показателей ───────────────────────────────
+// блок модалки показателей
 function openMeterModal(pointId) {
     const item = globalData.find(i => String(i.id) === String(pointId));
     if (!item) return;
@@ -1127,7 +1197,7 @@ function openMeterModal(pointId) {
         const min = Math.min(...prices), max = Math.max(...prices);
         const priceText = min === max ? `${fmt(min)} ₴` : `${fmt(min)}–${fmt(max)} ₴`;
 
-        // общий счетчик показываем только если в 1С у оборудования стоит галочка
+        // общий счётчик показываем только если в 1С у оборудования стоит галочка
         const sumLast = item.assortment.reduce((s, d) => s + (Number(d.last_meter) || 0), 0);
         const serverTotal = item.total_counter == null ? NaN : Number(item.total_counter);
         const totalBase = Number.isFinite(serverTotal) ? serverTotal : sumLast;
@@ -1238,7 +1308,7 @@ function calculateRowTotal(input) {
     updateTotalCounter();
 }
 
-// общий счетчик равен базовому значению из 1С плюс все приросты по строкам
+// общий счётчик равен базовому значению из 1С плюс все приросты по строкам
 function updateTotalCounter() {
     const valueEl = document.getElementById('totalCounterValue');
     if (!valueEl) return;
@@ -1293,7 +1363,7 @@ function closeModal() {
     if (!getTopModal()) restoreFocus();
 }
 
-// ─── оплата долга ──────────────────────────────────────
+// блок оплаты долга
 function openPaymentModal(pointId) {
     const item = globalData.find(i => String(i.id) === String(pointId));
     if (!item) return;
@@ -1404,7 +1474,7 @@ async function submitPayment() {
     }
 }
 
-// ─── отправка показателей ──────────────────────────────
+// блок отправки показателей
 async function applyDebtDelta(pointId, delta) {
     if (!delta) return;
     const item = globalData.find(i => String(i.id) === String(pointId));
@@ -1550,7 +1620,7 @@ function resetBtn(btn, text) {
     btn.classList.remove('btn-loading');
 }
 
-// ─── офлайн очередь ────────────────────────────────────
+// блок офлайн очереди
 function saveOffline(payload) {
     const queue = readQueue().slice();
     queue.push(payload);
@@ -1588,7 +1658,7 @@ async function syncOfflineMeters(opts) {
     }
 }
 
-// ─── уведомления и статус ──────────────────────────────
+// блок уведомлений и статуса
 function showSuccessAnimation() {
     const el = document.createElement('div');
     el.className = 'success-burst';
@@ -1617,20 +1687,23 @@ function setConnectionStatus(isOnline) {
     renderStatus();
 }
 
+function getStatusTimeText() {
+    if (!lastLoadedAt) return '';
+
+    const sec = Math.floor((Date.now() - lastLoadedAt) / 1000);
+    if (sec < 5) return 'щойно';
+    if (sec < 60) return `${sec} сек тому`;
+    if (sec < 3600) return `${Math.floor(sec / 60)} хв тому`;
+    return `${Math.floor(sec / 3600)} год тому`;
+}
+
 function renderStatus() {
     const box = document.getElementById('connectionStatus');
     if (!box) return;
+
     const queued = readQueue().length;
     const failedCount = readFailed().length;
-
-    let timeText = '';
-    if (lastLoadedAt) {
-        const sec = Math.floor((Date.now() - lastLoadedAt) / 1000);
-        timeText = sec < 5 ? 'щойно'
-            : sec < 60 ? `${sec} сек тому`
-            : sec < 3600 ? `${Math.floor(sec / 60)} хв тому`
-            : `${Math.floor(sec / 3600)} год тому`;
-    }
+    const timeText = getStatusTimeText();
 
     const timeEl = box.querySelector('.status-time');
     if (timeEl) timeEl.textContent = timeText;
@@ -1655,7 +1728,7 @@ function renderStatus() {
     box.title = 'Натисніть для оновлення' + (lastSyncError ? ` (${lastSyncError})` : '');
 }
 
-// ─── блокировки ────────────────────────────────────────
+// блок блокировок
 function computeLockUntil() {
     const now = new Date();
     if (LOCK_MODE === 'hours') return now.getTime() + LOCK_HOURS * 3600 * 1000;
@@ -1850,7 +1923,7 @@ function autofocusModal(modal) {
     if (focusables.length) focusables[0].focus();
 }
 
-// ─── автообновление ────────────────────────────────────
+// блок автообновления
 function startAutoRefresh() {
     stopAutoRefresh();
     autoRefreshTimer = setInterval(autoRefreshTick, AUTO_REFRESH_INTERVAL);
@@ -1920,7 +1993,6 @@ function ensureStockModal() {
     document.body.appendChild(el);
 
     el.querySelector('.modal-close').addEventListener('click', closeStockModal);
-    el.querySelector('#stockCloseBtn').addEventListener('click', closeStockModal);
     el.addEventListener('click', (e) => { if (e.target === el) closeStockModal(); });
 
     return el;
