@@ -325,7 +325,7 @@ async function submitRecount() {
 
         // 1С возвращает conduct_error в 200-ответе, если документ записался, но не провёлся
         const raw = (body && body.conduct_error != null) ? String(body.conduct_error) : '';
-        conductError = raw.replace(/[\s\/]+/g, '').length ? raw : '';
+        conductError = isBlankServerError(raw) ? '' : raw;
 
         success = true;
 

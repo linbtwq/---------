@@ -217,9 +217,9 @@ async function submitOrder() {
         try { body = await res.json(); } catch (e) {}
 
         if (body && body.conduct_error != null) {
-            const raw = String(body.conduct_error);
-            if (raw.replace(/[\s\/]+/g, '').length) conductError = raw;
-        }
+        const raw = String(body.conduct_error);
+        if (!isBlankServerError(raw)) conductError = raw;
+            }
 
         success = true;
     } catch (err) {

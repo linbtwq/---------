@@ -56,6 +56,13 @@ const escapeHtml = (v) => String(v ?? '').replace(_escRe, c => _escMap[c]);
 const stripZeros = (v) => String(v ?? '').trim().replace(/^0+/, '');
 const normalizeCode = (v) => String(v ?? '').replace(/\s+/g, '').replace(/^0+/, '');
 
+// 1С иногда возвращает в conduct_error значение " / " или одни пробелы,
+// даже когда ошибки нет. считаем пустым любой текст без букв и цифр.
+function isBlankServerError(value) {
+    if (value == null) return true;
+    return String(value).replace(/[\s\/]+/g, '').length === 0;
+}
+
 // блок состояния приложения
 let globalData = [];
 let lastDeleteTime = 0;
@@ -126,22 +133,99 @@ function saveLocks(locks) {
 let _queueCache = null;
 let _queueCacheAt = 0;
 
-function readQueue() {
-    const now = Date.now();
-    if (_queueCache && now - _queueCacheAt < 500) return _queueCache;
+// ============================================================
+// ОЧЕРЕДЬ И FAILED-TRACK
+// храним в IndexedDB, потому что localStorage в приватном режиме
+// Safari и на некоторых Android может очиститься между сессиями —
+// а это потеря работы курьера за день
+//
+// readQueue() остаётся синхронной: данные держим в памяти,
+// а в IndexedDB пишем в фоне. При старте приложения вызываем
+// initQueueStorage() — он читает из базы и заполняет память.
+// ============================================================
+
+const QUEUE_DB_KEY  = 'offlineMetersQueue';
+const FAILED_DB_KEY = 'failedMetersQueue';
+
+// те же ключи в localStorage — для миграции и как страховка
+const QUEUE_LS_KEY  = 'offlineMetersQueue';
+const FAILED_LS_KEY = 'failedMetersQueue';
+
+// in-memory состояние — синхронный доступ для всего остального кода
+let _queueState = { queue: [], failed: [] };
+let _queueReady = false;
+
+// безопасно читаем JSON из localStorage
+function readJsonSafe(key, fallback) {
     try {
-        _queueCache = JSON.parse(localStorage.getItem('offlineMetersQueue')) || [];
+        const raw = localStorage.getItem(key);
+        if (!raw) return fallback;
+        const v = JSON.parse(raw);
+        return v == null ? fallback : v;
     } catch (e) {
-        _queueCache = [];
+        return fallback;
     }
-    _queueCacheAt = now;
-    return _queueCache;
 }
+
+// вызывается один раз при старте приложения (см. startApp)
+// читает очередь и failed из IndexedDB, при необходимости мигрирует из localStorage
+async function initQueueStorage() {
+    if (_queueReady) return;
+
+    try {
+        let queue  = await localDB.load(QUEUE_DB_KEY);
+        let failed = await localDB.load(FAILED_DB_KEY);
+
+        queue  = Array.isArray(queue)  ? queue  : [];
+        failed = Array.isArray(failed) ? failed : [];
+
+        // миграция из localStorage если в базе пусто, а в localStorage что-то есть
+        if (!queue.length) {
+            const legacy = readJsonSafe(QUEUE_LS_KEY, []);
+            if (Array.isArray(legacy) && legacy.length) {
+                queue = legacy;
+                await localDB.save(QUEUE_DB_KEY, queue);
+            }
+        }
+        if (!failed.length) {
+            const legacy = readJsonSafe(FAILED_LS_KEY, []);
+            if (Array.isArray(legacy) && legacy.length) {
+                failed = legacy;
+                await localDB.save(FAILED_DB_KEY, failed);
+            }
+        }
+
+        _queueState = { queue, failed };
+        _queueReady = true;
+    } catch (e) {
+        // если IndexedDB почему-то недоступна работаем как раньше, через localStorage
+        console.warn('[queue] IndexedDB недоступна, fallback на localStorage', e);
+        _queueState = {
+            queue:  readJsonSafe(QUEUE_LS_KEY, []),
+            failed: readJsonSafe(FAILED_LS_KEY, [])
+        };
+        _queueReady = true;
+    }
+}
+
+function readQueue() {
+    // до инициализации читаем из localStorage, чтобы не потерять данные
+    if (!_queueReady) return readJsonSafe(QUEUE_LS_KEY, []);
+    return _queueState.queue;
+}
+
 function saveQueue(q) {
-    if (q.length) localStorage.setItem('offlineMetersQueue', JSON.stringify(q));
-    else localStorage.removeItem('offlineMetersQueue');
-    _queueCache = q;
-    _queueCacheAt = Date.now();
+    const list = Array.isArray(q) ? q : [];
+    _queueState.queue = list;
+
+    // в IndexedDB пишем асинхронно не блокируем UI
+    localDB.save(QUEUE_DB_KEY, list).catch(e => console.warn('[queue] save', e));
+
+    // дубль в localStorage как страховка
+    try {
+        if (list.length) localStorage.setItem(QUEUE_LS_KEY, JSON.stringify(list));
+        else localStorage.removeItem(QUEUE_LS_KEY);
+    } catch (e) {}
 }
 
 // блок отклонённых записей очереди
@@ -151,17 +235,27 @@ const FAILED_KEY = 'failedMetersQueue';
 const FAILED_TTL_MS = 14 * 24 * 3600 * 1000;
 
 function readFailed() {
-    try {
-        const list = JSON.parse(localStorage.getItem(FAILED_KEY)) || [];
-        const now = Date.now();
-        return list.filter(f => f && f.payload && f.at && now - f.at < FAILED_TTL_MS);
-    } catch (e) {
-        return [];
-    }
+    // до инициализации читаем из localStorage
+    const raw = _queueReady
+        ? _queueState.failed
+        : readJsonSafe(FAILED_LS_KEY, []);
+
+    const now = Date.now();
+    return raw.filter(f => f && f.payload && f.at && now - f.at < FAILED_TTL_MS);
 }
+
 function saveFailed(list) {
-    if (list.length) localStorage.setItem(FAILED_KEY, JSON.stringify(list));
-    else localStorage.removeItem(FAILED_KEY);
+    const arr = Array.isArray(list) ? list : [];
+    _queueState.failed = arr;
+
+    // в IndexedDB пишем асинхронно
+    localDB.save(FAILED_DB_KEY, arr).catch(e => console.warn('[queue] saveFailed', e));
+
+    // дубль в localStorage как страховка
+    try {
+        if (arr.length) localStorage.setItem(FAILED_LS_KEY, JSON.stringify(arr));
+        else localStorage.removeItem(FAILED_LS_KEY);
+    } catch (e) {}
 }
 
 // снимает локальную блокировку только если она ждала отправки
@@ -344,27 +438,16 @@ const localDB = {
     }
 };
 
-// очистка indexeddb, вызывается из auth.js после выхода
-// чтобы следующий пользователь не увидел чужие данные
-function clearLocalDb() {
-    return new Promise((resolve) => {
-        try {
-            if (localDB._db) {
-                localDB._db.close();
-                localDB._db = null;
-            }
-        } catch (e) {}
-
-        if (!window.indexedDB || !indexedDB.deleteDatabase) { resolve(); return; }
-
-        try {
-            const req = indexedDB.deleteDatabase('CoffeeMetersDB');
-            req.onsuccess = req.onerror = req.onblocked = () => resolve();
-        } catch (e) {
-            resolve();
-        }
-    });
+// очищает кэш справочника, но НЕ трогает очередь и failed
+// они принадлежат курьеру и не должны пропадать при выходе
+async function clearLocalDb() {
+    try {
+        await localDB.save('cachedNomenclature', null);
+    } catch (e) {
+        console.warn('[clearLocalDb]', e);
+    }
 }
+
 window.clearLocalDb = clearLocalDb;
 
 // блок инициализации
@@ -376,7 +459,11 @@ document.addEventListener('DOMContentLoaded', () => {
     showVersion();
 });
 
-function startApp() {
+async function startApp() {
+    // сначала поднимаем очередь из IndexedDB иначе syncOfflineMeters
+    // увидит пустой список и ничего не отправит
+    await initQueueStorage();
+
     clearMeterFlowState();
     clearPaymentFlowState();
     loadData();
@@ -1447,7 +1534,7 @@ async function submitPayment() {
 
         // 1С может вернуть " / " или пробелы даже когда ошибок нет
         const rawConduct = (body && body.conduct_error != null) ? String(body.conduct_error) : '';
-        const conductError = rawConduct.replace(/[\s\/]+/g, '').length ? rawConduct : '';
+        const conductError = isBlankServerError(rawConduct) ? '' : rawConduct;
 
         if (conductError) {
             console.error('[1С] помилка проведення ПКО:', conductError);

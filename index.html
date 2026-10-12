@@ -178,6 +178,25 @@
 
     <div id="appVersion" class="app-version"></div>
 
+    <!-- jборачиваем fetch, чтобы ngrok не показывал страницу предупреждения
+         для запросов приложения. заголовок говорит ngrok это не бот, пропускай. -->
+    <script>
+    (function () {
+        const originalFetch = window.fetch;
+        window.fetch = function (input, init) {
+            init = init || {};
+            // если это запрос на наш ngrok-домен добавляем заголовок
+            const url = typeof input === 'string' ? input : (input && input.url) || '';
+            if (url.includes('ngrok-free.dev') || url.includes('ngrok-free.app')) {
+                init.headers = Object.assign({}, init.headers, {
+                    'ngrok-skip-browser-warning': '1'
+                });
+            }
+            return originalFetch.call(this, input, init);
+        };
+    })();
+    </script>
+
     <script src="version.js"></script>
     <script src="javascript/config.js"></script>
     <script src="javascript/auth.js"></script>
@@ -189,5 +208,37 @@
     <script src="javascript/drawer.js"></script>
     <script src="javascript/machines.js"></script>
     <script src="javascript/optimize.js"></script>
+
+    <script>
+    // если версия не менялась,
+    // service worker может отдать клиенту старый закэшированный код.
+    // если тут старый номер, значит пора поднять APP_VERSION.
+    (function () {
+        try {
+            if (typeof APP_VERSION === 'undefined') return;
+
+            // запоминаем последнюю версию, которую видел этот браузер
+            const seen = localStorage.getItem('__lastSeenVersion');
+
+            // если версия поменялась пишем инфо один раз и обновляем метку
+            if (seen !== APP_VERSION) {
+                localStorage.setItem('__lastSeenVersion', APP_VERSION);
+                console.info(
+                    '%c[app] версия ' + APP_VERSION +
+                    ' если только что деплоили, надо поднять её в version.js',
+                    'color:#0d5946;font-weight:bold'
+                );
+                return;
+            }
+
+            // если версия та же пишем предупреждение, чтобы не забыть
+            console.warn(
+                '%c[app] версия не менялась с прошлого запуска (' + APP_VERSION + ')' +
+                ' если деплоили код, клиенты увидят старый кэш',
+                'color:#b45309;font-weight:bold'
+            );
+        } catch (e) {}
+    })();
+    </script>
 </body>
 </html>
