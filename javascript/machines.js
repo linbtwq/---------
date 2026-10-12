@@ -1,9 +1,10 @@
-// модалка залишків по точці
+// javascript/machines.js
+// остатки склада, закреплённого за сотрудником
 
 let machinesLoading = false;
 let machinesQuery = '';
-let machinesFilter = 'all'; // all | in | zero | neg
-let machinesSort = 'name'; // name | qty_desc | qty_asc
+let machinesFilter = 'all';   // all | in | zero | neg
+let machinesSort = 'name';    // name | qty_desc | qty_asc | price_desc | price_asc
 let machinesData = [];
 
 function ensureMachinesModal() {
@@ -28,7 +29,7 @@ function ensureMachinesModal() {
                         </svg>
                     </div>
                     <div class="machines-head-text">
-                        <h3 id="machinesTitle">Точка</h3>
+                        <h3 id="machinesTitle">Склад</h3>
                         <div class="assort-sub" id="machinesSub"></div>
                     </div>
                 </div>
@@ -71,6 +72,8 @@ function ensureMachinesModal() {
                             <button type="button" class="machines-sort-option active" role="option" aria-selected="true" data-sort="name">За назвою (А–Я)</button>
                             <button type="button" class="machines-sort-option" role="option" aria-selected="false" data-sort="qty_desc">Спочатку більше</button>
                             <button type="button" class="machines-sort-option" role="option" aria-selected="false" data-sort="qty_asc">Спочатку менше</button>
+                            <button type="button" class="machines-sort-option" role="option" aria-selected="false" data-sort="price_desc">Дорожче спочатку</button>
+                            <button type="button" class="machines-sort-option" role="option" aria-selected="false" data-sort="price_asc">Дешевше спочатку</button>
                         </div>
                     </div>
                 </div>
@@ -104,10 +107,7 @@ function ensureMachinesModal() {
 
     el.querySelector('.modal-close').addEventListener('click', closeMachinesModal);
     el.addEventListener('click', (e) => {
-        if (e.target === el) {
-            closeMachinesModal();
-            return;
-        }
+        if (e.target === el) { closeMachinesModal(); return; }
         if (!e.target.closest('.machines-sort-control')) closeSortMenu();
     });
     el.addEventListener('keydown', (e) => {
@@ -132,8 +132,7 @@ function ensureMachinesModal() {
     });
 
     sortButton.addEventListener('click', () => {
-        if (sortMenu.hidden) openSortMenu();
-        else closeSortMenu();
+        if (sortMenu.hidden) openSortMenu(); else closeSortMenu();
     });
     sortButton.addEventListener('keydown', (e) => {
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -189,13 +188,11 @@ function renderMachinesList() {
     const body = document.getElementById('machinesBody');
     if (!overlay || !body) return;
 
-    // лічильники по категоріях рахуємо тільки по повному списку
-    const total = machinesData.length;
-    const cntIn = machinesData.filter(it => (Number(it.quantity) || 0) > 0).length;
+    const total   = machinesData.length;
+    const cntIn   = machinesData.filter(it => (Number(it.quantity) || 0) > 0).length;
     const cntZero = machinesData.filter(it => (Number(it.quantity) || 0) === 0).length;
-    const cntNeg = machinesData.filter(it => (Number(it.quantity) || 0) < 0).length;
+    const cntNeg  = machinesData.filter(it => (Number(it.quantity) || 0) < 0).length;
 
-    // оновлюємо текст чипів з кількістю
     const setChipText = (filter, label, count) => {
         const chip = overlay.querySelector(`.mf-chip[data-filter="${filter}"]`);
         if (chip) chip.innerHTML = `${label}<span class="mf-chip-count">${count}</span>`;
@@ -205,7 +202,6 @@ function renderMachinesList() {
     setChipText('zero', 'Немає', cntZero);
     setChipText('neg', 'Від\'ємні', cntNeg);
 
-    // фільтруємо
     let list = machinesData.slice();
 
     if (machinesFilter === 'in') list = list.filter(it => (Number(it.quantity) || 0) > 0);
@@ -220,13 +216,16 @@ function renderMachinesList() {
         });
     }
 
-    // сортуємо
     if (machinesSort === 'name') {
         list.sort((a, b) => String(a.Name || '').localeCompare(String(b.Name || ''), 'uk'));
     } else if (machinesSort === 'qty_desc') {
         list.sort((a, b) => (Number(b.quantity) || 0) - (Number(a.quantity) || 0));
     } else if (machinesSort === 'qty_asc') {
         list.sort((a, b) => (Number(a.quantity) || 0) - (Number(b.quantity) || 0));
+    } else if (machinesSort === 'price_desc') {
+        list.sort((a, b) => (Number(b.price) || 0) - (Number(a.price) || 0));
+    } else if (machinesSort === 'price_asc') {
+        list.sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0));
     }
 
     if (!list.length) {
@@ -234,22 +233,49 @@ function renderMachinesList() {
         return;
     }
 
+    let sumQty = 0;
+    let sumMoney = 0;
+    list.forEach(it => {
+        const q = Number(it.quantity) || 0;
+        const p = Number(it.price) || 0;
+        sumQty += q;
+        sumMoney += q * p;
+    });
+
     body.innerHTML = `
         <div class="mt-list">
             ${list.map((it, index) => {
                 const qty = Number(it.quantity) || 0;
+                const price = Number(it.price) || 0;
                 const code = it.Code ? String(it.Code) : '';
                 const cls = qty > 0 ? 'has' : (qty < 0 ? 'neg' : 'zero');
+                const priceHtml = price > 0
+                    ? `<div class="mt-row-price">${fmt(price)} ₴</div>`
+                    : '';
                 return `
                     <div class="mt-row mt-row-${cls}" style="--machine-row-index:${Math.min(index, 7)}">
                         <div class="mt-row-main">
                             <div class="mt-row-name">${escapeHtml(it.Name || '—')}</div>
                             ${code ? `<div class="mt-row-code">код ${escapeHtml(code)}</div>` : ''}
                         </div>
-                        <div class="mt-row-qty ${cls}">${fmt(qty)}</div>
+                        <div class="mt-row-side">
+                            ${priceHtml}
+                            <div class="mt-row-qty ${cls}">${fmt(qty)}</div>
+                        </div>
                     </div>
                 `;
             }).join('')}
+        </div>
+
+        <div class="mt-summary">
+            <div class="mt-summary-row">
+                <span>Всього на складі:</span>
+                <b>${fmt(sumQty)}</b>
+            </div>
+            <div class="mt-summary-row">
+                <span>Сума за цінами:</span>
+                <b>${fmt(sumMoney)} ₴</b>
+            </div>
         </div>
     `;
 }
@@ -260,7 +286,6 @@ async function openMachinesModal(pointId) {
     const point = (typeof globalData !== 'undefined')
         ? globalData.find(i => String(i.id) === String(pointId))
         : null;
-    if (!point) return;
 
     if (typeof rememberFocus === 'function') rememberFocus();
 
@@ -292,11 +317,15 @@ async function openMachinesModal(pointId) {
     });
     overlay.querySelectorAll('.mf-chip').forEach(c => c.classList.toggle('active', c.dataset.filter === 'all'));
 
-    title.textContent = point.point_name || 'Точка';
-
-    const machineName = point.coffee_machine || '';
-    const machineCode = point.coffee_machine_code ? ` · код ${point.coffee_machine_code}` : '';
-    sub.textContent = (machineName ? machineName : 'Обладнання не вказано') + machineCode;
+    if (point) {
+        title.textContent = point.point_name || 'Точка';
+        const machineName = point.coffee_machine || '';
+        const machineCode = point.coffee_machine_code ? ` · код ${point.coffee_machine_code}` : '';
+        sub.textContent = (machineName ? machineName : 'Обладнання не вказано') + machineCode;
+    } else {
+        title.textContent = 'Склад';
+        sub.textContent = 'Залишки на основному складі';
+    }
 
     body.innerHTML = `
         <div class="mt-loading">
@@ -311,8 +340,9 @@ async function openMachinesModal(pointId) {
     machinesLoading = true;
 
     try {
+        const u = currentUser ? encodeURIComponent(currentUser.id) : '';
         const res = await fetchWithTimeout(
-            `${apiBase}/machines?point=${encodeURIComponent(point.id)}&t=${Date.now()}`,
+            `${apiBase}/machines?u=${u}&t=${Date.now()}`,
             { method: 'GET', cache: 'no-store' },
             APP_CONFIG.loadTimeoutMs
         );

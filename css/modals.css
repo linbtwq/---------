@@ -1300,3 +1300,47 @@ body.dark-theme .mf-chip.active .mf-chip-count { background: rgba(0, 0, 0, 0.18)
     .machines-sort-menu,
     .mt-row:nth-child(-n+8) { animation: none; }
 }
+
+.mt-row-side {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.mt-row-price {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    opacity: 0.85;
+}
+
+.mt-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 14px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    background: var(--surface);
+}
+
+.mt-summary-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 0.88rem;
+    color: var(--text-muted);
+}
+
+.mt-summary-row b {
+    color: var(--text-heading);
+    font-weight: 750;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.95rem;
+}
