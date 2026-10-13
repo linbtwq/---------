@@ -791,7 +791,7 @@ function onResultsClick(event) {
     else if (action === 'assort') openAssortModal(id);
     else if (action === 'stock') openStockModal(id);
     else if (action === 'machines') toggleMachineExpand(id);
-    else if (action === 'shipment') openStub('Відвантаження на точку', id);
+    else if (action === 'shipment') openShipmentModal(id);
     else if (action === 'recount') openRecountModal(id);
     else if (action === 'note') openNoteModal(id);
 }
