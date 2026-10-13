@@ -775,6 +775,10 @@ function scheduleStatusLoop() {
 }
 
 function onResultsClick(event) {
+    // клик внутри раскрытого блока машины там свои обработчики,
+    // не даём ему сработать как "toggle карточки"
+    if (event.target.closest('.machine-expand')) return;
+
     const btn = event.target.closest('[data-action]');
     if (!btn) return;
 
@@ -786,7 +790,7 @@ function onResultsClick(event) {
     else if (action === 'pay') openPaymentModal(id);
     else if (action === 'assort') openAssortModal(id);
     else if (action === 'stock') openStockModal(id);
-    else if (action === 'machines') openMachinesModal(id);
+    else if (action === 'machines') toggleMachineExpand(id);
     else if (action === 'shipment') openStub('Відвантаження на точку', id);
     else if (action === 'recount') openRecountModal(id);
     else if (action === 'note') openNoteModal(id);
@@ -1056,7 +1060,13 @@ function filterPoints(query, mode = searchMode) {
 
         let hit;
         if (mode === 'machine') {
-            hit = data.machine.includes(q) || matchMachineCode || matchMachineRaw;
+            // в режиме "Машина" ищем по названию оборудования,
+            // по коду оборудования, по коду точки и по названию точки
+            hit = data.machine.includes(q)
+                || matchMachineCode
+                || matchMachineRaw
+                || matchId
+                || data.name.includes(q);
         } else if (mode === 'point') {
             hit = data.name.includes(q) || matchId;
         } else {
@@ -1114,6 +1124,8 @@ function cardHtml(item, idx) {
     // режим машины
     // карточка без кнопок, вся кликабельна и открывает модалку с остатками
     if (searchMode === 'machine') {
+        // раскрывающийся блок вместо модалки: та же карточка,
+        // но снизу появляется панель с остатками
         return `
             <div class="point-card point-card-machine${(meterLock || orderLock) ? ' locked' : ''}"
                  style="--i:${idx}"
@@ -1139,8 +1151,10 @@ function cardHtml(item, idx) {
                 <div class="machine-cta">
                     <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8h14v9a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V8Z"/><path d="M9 8V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v3"/><path d="M9 13h6"/><path d="M10 16h4"/></svg>
                     <span>Показати залишки</span>
-                    <svg class="machine-cta-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+                    <svg class="machine-cta-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
                 </div>
+
+                <div class="machine-expand" hidden></div>
             </div>
         `;
     }
@@ -1171,7 +1185,7 @@ function cardHtml(item, idx) {
     }
 
     return `
-        <div class="point-card${(meterLock || orderLock) ? ' locked' : ''}" style="--i:${idx}" data-rendered="1">
+        <div class="point-card${(meterLock || orderLock) ? ' locked' : ''}" style="--i:${idx}" data-rendered="1" data-id="${id}">
             <div class="point-header">
                 <div>
                     <span class="point-title">${escapeHtml(item.point_name) || 'Без назви'}</span>
@@ -1198,7 +1212,16 @@ function cardHtml(item, idx) {
                 <button class="action-btn" data-action="note" data-id="${id}">${actionIconMarkup('note')}<span>Примітка</span></button>
             </div>
 
-            ${notes}
+                        ${notes}
+
+            ${searchMode === 'all' ? `
+                <div class="machine-cta" data-action="machines" data-id="${id}" role="button" tabindex="0">
+                    <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8h14v9a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V8Z"/><path d="M9 8V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v3"/><path d="M9 13h6"/><path d="M10 16h4"/></svg>
+                    <span>Показати залишки</span>
+                    <svg class="machine-cta-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                </div>
+                <div class="machine-expand" hidden></div>
+            ` : ''}
         </div>`;
 }
 

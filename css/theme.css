@@ -584,32 +584,40 @@ body.dark-theme .note-chip.active { color: #07231c; }
    Карточка точки в режиме "Машина" — кликабельная, без кнопок
    ============================================================ */
 
-.point-card-machine {
-    cursor: pointer;
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+/* в режиме "Машина" при наведении на карточку — плашка становится зелёной */
+@media (hover: hover) and (pointer: fine) {
+    .point-card-machine:hover .machine-cta {
+        background: var(--primary);
+        color: #fff;
+    }
 }
 
-.point-card-machine:hover {
-    border-color: var(--primary);
-    box-shadow: var(--shadow-float);
-    transform: translateY(-2px);
-}
-
-.point-card-machine:active {
-    transform: scale(0.99);
-}
-
-.point-card-machine:focus-visible {
-    outline: 2px solid var(--primary);
-    outline-offset: 2px;
+/* в остальных режимах — зелёный цвет только при наведении на саму плашку */
+@media (hover: hover) and (pointer: fine) {
+    .machine-cta:hover {
+        background: var(--primary);
+        color: #fff;
+    }
 }
 
 /* у machine-карточки grid без строки с долгом — поля растягиваются */
 .point-card-machine .point-grid {
     padding-bottom: 4px;
+}
+
+/* на десктопе карточка машины чуть просторнее и заголовок крупнее */
+@media (min-width: 900px) {
+    .point-card-machine {
+        padding: 22px 26px 24px;
+    }
+
+    .point-card-machine .point-title {
+        font-size: 1.28rem;
+    }
+
+    .point-card-machine .point-grid {
+        gap: 18px 24px;
+    }
 }
 
 .machine-cta {

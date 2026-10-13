@@ -1344,3 +1344,39 @@ body.dark-theme .mf-chip.active .mf-chip-count { background: rgba(0, 0, 0, 0.18)
     font-variant-numeric: tabular-nums;
     font-size: 0.95rem;
 }
+
+/* ============================================================
+   раскрывающийся блок остатков под карточкой (режим "Машина")
+   ============================================================ */
+
+.point-card-machine .machine-expand {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--separator);
+    animation: fadeUp 0.22s var(--ease);
+}
+
+.point-card-machine .machine-expand[hidden] { display: none; }
+
+/* при раскрытии — стрелочка вверх, CTA активнее */
+.point-card-machine.machine-card-open .machine-cta-arrow {
+    transform: rotate(180deg);
+}
+
+.point-card-machine.machine-card-open .machine-cta {
+    background: var(--primary);
+    color: #fff;
+}
+
+.machine-cta-arrow { transition: transform 0.25s var(--ease); }
+
+/* в раскрытом блоке тулбар прижимается к краям */
+.machine-expand .machines-toolbar {
+    border-radius: var(--r);
+    border: 1px solid var(--border);
+    margin-bottom: 12px;
+}
+
+.machine-expand .mt-list { margin-top: 0; }
+
+.low-end .point-card-machine .machine-expand { animation: none; }
