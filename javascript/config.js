@@ -3,7 +3,7 @@
 
 // адрес HTTP-сервиса 1С по умолчанию
 // используется, если в браузере не задан свой адрес через localStorage
-const _RAW_API_BASE_DEFAULT = 'https://rented-dating-diocese.ngrok-free.dev/siteapinew/hs/siteapi';
+const _RAW_API_BASE_DEFAULT = 'http://176.98.84.42:49155/siteapinew/hs/siteapi';
 
 // функция решает, какой адрес использовать:
 //   1) если в localStorage лежит ключ apiBaseOverride и это валидная http(s)-ссылка — берём её
